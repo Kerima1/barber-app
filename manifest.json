@@ -1,0 +1,16 @@
+{
+  "name": "Barber",
+  "short_name": "Barber",
+  "description": "File d'attente pour salon de coiffure",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3EEFB",
+  "theme_color": "#7C5CFF",
+  "orientation": "portrait",
+  "lang": "fr",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

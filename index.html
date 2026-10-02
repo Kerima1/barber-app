@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Barber — Espace propriétaire</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Tajawal', system-ui, sans-serif; background: linear-gradient(155deg, #F3EEFB 0%, #E9E0FA 45%, #DCCEF5 100%); color: #1E1033; min-height: 100vh; padding: 24px 16px; }
+  .wrap { max-width: 380px; margin: 0 auto; }
+  .card { background: #fff; border: 1px solid #E3E3EC; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #76767F; font-size: 13px; margin-bottom: 18px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #76767F; margin: 10px 0 4px; }
+  input { width: 100%; padding: 11px 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; font-family: inherit; }
+  button { cursor: pointer; font-family: inherit; }
+  .btn-primary { width: 100%; padding: 13px; background: linear-gradient(150deg, #9C7CFF, #6E4BE0); color: #fff; border: none; border-radius: 14px; font-weight: 800; font-size: 15px; margin-top: 16px; box-shadow: 0 14px 28px rgba(124,92,255,.35); }
+
+  /* ---------- login screen ---------- */
+  .login-screen { padding-top: 20px; }
+  .login-avatar { width: 78px; height: 78px; margin: 0 auto 16px; display: block; border-radius: 22px; box-shadow: 0 14px 30px rgba(74,47,194,.3); }
+  .login-head { text-align: center; margin-bottom: 22px; }
+  .login-head h1 { font-size: 24px; font-weight: 800; }
+  .login-head p { color: #76767F; font-size: 13px; margin-top: 4px; }
+  .login-form-card { background: rgba(255,255,255,.75); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,.6); border-radius: 24px; padding: 24px 20px; box-shadow: 0 16px 34px rgba(74,47,194,.12); }
+  .login-tabs { display: flex; gap: 6px; background: rgba(124,92,255,.08); border: 1px solid rgba(124,92,255,.15); border-radius: 14px; padding: 4px; margin-bottom: 20px; }
+  .login-tabs button { flex: 1; border: none; background: transparent; font-weight: 700; font-size: 13px; color: #76767F; padding: 9px; border-radius: 10px; }
+  .login-tabs button.active { background: linear-gradient(150deg, #9C7CFF, #6E4BE0); color: #fff; }
+  .login-forgot { display: block; text-align: center; margin-top: 16px; font-size: 13px; color: #6E4BE0; font-weight: 700; text-decoration: none; cursor: pointer; }
+  .btn-ghost { background: transparent; border: 1px solid #ddd; color: #444; border-radius: 8px; padding: 9px 12px; font-size: 12px; font-weight: 700; }
+  .link { text-align: center; margin-top: 14px; font-size: 13px; color: #7C5CFF; cursor: pointer; text-decoration: underline; }
+  .error { color: #D9463E; font-size: 13px; margin-top: 8px; display: none; }
+  .hidden { display: none !important; }
+  .chair { display: flex; flex-direction: column; gap: 10px; background: #F3EEFB; border: 1px solid #7C5CFF; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .chair .num { font-size: 26px; font-weight: 700; }
+  .chair-actions { display: flex; gap: 8px; }
+  .chair-actions button { flex: 1; padding: 9px; border-radius: 8px; border: none; font-size: 12px; font-weight: 700; }
+  .btn-finish { background: #7C5CFF; color: #fff; }
+  .btn-absent { background: #eee; color: #555; }
+  .btn-cancel { background: transparent; border: 1px solid #D9463E; color: #D9463E; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .tabs button { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: #fff; font-weight: 700; font-size: 13px; }
+  .tabs button.active { background: #7C5CFF; color: #fff; border-color: #7C5CFF; }
+  .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 14px; }
+  .muted { color: #76767F; font-size: 12px; }
+  #loading { text-align: center; padding: 60px 0; color: #76767F; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="loading">Chargement…</div>
+
+  <!-- AUTH -->
+  <div id="auth-view" class="hidden login-screen">
+    <img src="icon.svg" alt="Barber" class="login-avatar">
+    <div class="login-head">
+      <h1 id="auth-title">Connexion</h1>
+      <p id="auth-sub">Gère la file d'attente de ton salon</p>
+    </div>
+
+    <div class="login-form-card">
+      <div class="login-tabs">
+        <button id="tab-login-btn" class="active" onclick="setMode('login')">Connexion</button>
+        <button id="tab-signup-btn" onclick="setMode('signup')">Créer un compte</button>
+      </div>
+
+      <div id="signup-fields" class="hidden">
+        <label>Nom du salon</label>
+        <input id="f-name" placeholder="Nom du salon">
+        <label>Téléphone</label>
+        <input id="f-phone" placeholder="+222 XX XX XX XX">
+      </div>
+
+      <label>E-mail</label>
+      <input id="f-email" type="email" placeholder="vous@exemple.com">
+
+      <label>Code PIN</label>
+      <input id="f-pin" type="password" placeholder="••••" maxlength="6">
+
+      <div id="confirm-wrap" class="hidden">
+        <label>Confirmer le code PIN</label>
+        <input id="f-pin2" type="password" placeholder="••••" maxlength="6">
+      </div>
+
+      <div class="error" id="auth-error"></div>
+      <button class="btn-primary" id="auth-submit">Entrer</button>
+      <a class="login-forgot" id="forgot-link" onclick="forgotPassword()">Mot de passe oublié ?</a>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dash-view" class="hidden">
+    <div class="row">
+      <h1 id="dash-shop-name" style="font-size:18px;">—</h1>
+      <button class="btn-ghost" id="signout-btn">Déconnexion</button>
+    </div>
+
+    <div class="tabs">
+      <button class="active" data-tab="panel" onclick="showTab('panel')">Panneau</button>
+      <button data-tab="settings" onclick="showTab('settings')">Réglages</button>
+    </div>
+
+    <div id="tab-panel">
+      <div class="card">
+        <div class="row"><strong>Postes en cours</strong></div>
+        <div id="chairs-box"></div>
+        <button class="btn-ghost" style="width:100%; margin-top:4px;" onclick="addChair()">+ Ajouter un poste</button>
+      </div>
+      <div class="card" id="missed-card" style="display:none;">
+        <div class="row"><strong>Ne s'est pas présenté</strong></div>
+        <div id="missed-box"></div>
+      </div>
+      <div class="card">
+        <div class="row"><strong>En attente</strong><span class="muted" id="waiting-count"></span></div>
+        <div id="waiting-box" class="muted"></div>
+      </div>
+    </div>
+
+    <div id="tab-settings" class="hidden">
+      <div class="card">
+        <label>Nom du salon</label>
+        <input id="s-name">
+        <label>Téléphone</label>
+        <input id="s-phone">
+        <label>Capacité du jour</label>
+        <input id="s-capacity" type="number" min="1">
+        <button class="btn-primary" onclick="saveSettings()">Enregistrer</button>
+      </div>
+      <div class="card">
+        <div class="row"><strong>Lien client de ce salon</strong></div>
+        <div id="shop-link" class="muted" style="word-break:break-all;"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, signOut, sendPasswordResetEmail
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, runTransaction, enableIndexedDbPersistence
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA9JdUkigDQaxiAqfMX1k0D32iEOqSL5xs",
+  authDomain: "barber-app-90f5d.firebaseapp.com",
+  projectId: "barber-app-90f5d",
+  storageBucket: "barber-app-90f5d.firebasestorage.app",
+  messagingSenderId: "638654190129",
+  appId: "1:638654190129:web:2bc706db7090fa8087bb10"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+// keeps the last-seen queue visible and queues actions to sync automatically
+// once the connection comes back — doesn't work if two devices change the
+// same shop while both are offline at once, but covers normal brief drops.
+enableIndexedDbPersistence(db).catch(() => {});
+
+let mode = 'login'; // 'login' | 'signup'
+let currentUid = null;
+let unsubShop = null;
+let shopData = null;
+
+function slugify(name) {
+  return name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'salon';
+}
+
+// ---------- AUTH UI ----------
+function renderAuthMode() {
+  document.getElementById('auth-error').style.display = 'none';
+  document.getElementById('tab-login-btn').classList.toggle('active', mode === 'login');
+  document.getElementById('tab-signup-btn').classList.toggle('active', mode === 'signup');
+  if (mode === 'signup') {
+    document.getElementById('auth-title').textContent = 'Créer un compte';
+    document.getElementById('auth-sub').textContent = "Configure ton salon et choisis un code PIN.";
+    document.getElementById('signup-fields').classList.remove('hidden');
+    document.getElementById('confirm-wrap').classList.remove('hidden');
+    document.getElementById('forgot-link').style.display = 'none';
+  } else {
+    document.getElementById('auth-title').textContent = 'Connexion';
+    document.getElementById('auth-sub').textContent = "Gère la file d'attente de ton salon";
+    document.getElementById('signup-fields').classList.add('hidden');
+    document.getElementById('confirm-wrap').classList.add('hidden');
+    document.getElementById('forgot-link').style.display = 'block';
+  }
+}
+
+window.setMode = function (newMode) {
+  mode = newMode;
+  renderAuthMode();
+};
+
+window.forgotPassword = async function () {
+  const email = document.getElementById('f-email').value.trim();
+  const errEl = document.getElementById('auth-error');
+  if (!email) {
+    errEl.textContent = 'Entre d\u2019abord ton e-mail ci-dessus, puis clique sur ce lien.';
+    errEl.style.display = 'block';
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    errEl.style.color = '#2e7d32';
+    errEl.textContent = 'E-mail envoyé — vérifie ta boîte de réception pour réinitialiser ton code PIN.';
+    errEl.style.display = 'block';
+  } catch (e) {
+    errEl.style.color = '#D9463E';
+    errEl.textContent = friendlyError(e);
+    errEl.style.display = 'block';
+  }
+};
+
+document.getElementById('auth-submit').onclick = async () => {
+  const email = document.getElementById('f-email').value.trim();
+  const pin = document.getElementById('f-pin').value.trim();
+  const errEl = document.getElementById('auth-error');
+  errEl.style.display = 'none';
+
+  try {
+    if (mode === 'signup') {
+      const name = document.getElementById('f-name').value.trim();
+      const phone = document.getElementById('f-phone').value.trim();
+      const pin2 = document.getElementById('f-pin2').value.trim();
+      if (!name || !email || !pin) throw new Error('Remplis le nom, l\u2019e-mail et un code PIN.');
+      if (pin !== pin2) throw new Error('Les deux codes PIN ne correspondent pas.');
+      if (pin.length < 4) throw new Error('Le code PIN doit faire au moins 4 chiffres.');
+
+      const cred = await createUserWithEmailAndPassword(auth, email, pin);
+      const uid = cred.user.uid;
+      const slug = slugify(name);
+
+      await setDoc(doc(db, 'slugs', slug), { uid });
+      await setDoc(doc(db, 'shops', uid), {
+        name, phone, email, slug,
+        capacity: 50,
+        nextTicket: 1,
+        waiting: [],
+        chairs: [],
+        missed: [],
+        createdAt: Date.now()
+      });
+      // onAuthStateChanged below picks it up from here
+    } else {
+      if (!email || !pin) throw new Error('Entre ton e-mail et ton code PIN.');
+      await signInWithEmailAndPassword(auth, email, pin);
+    }
+  } catch (e) {
+    errEl.textContent = friendlyError(e);
+    errEl.style.display = 'block';
+  }
+};
+
+function friendlyError(e) {
+  const code = e.code || '';
+  if (code.includes('wrong-password') || code.includes('invalid-credential')) return 'Code PIN incorrect.';
+  if (code.includes('user-not-found')) return 'Aucun compte avec cet e-mail.';
+  if (code.includes('email-already-in-use')) return 'Un compte existe déjà avec cet e-mail.';
+  if (code.includes('weak-password')) return 'Le code PIN est trop court (minimum 6 caractères pour Firebase).';
+  return e.message || 'Une erreur est survenue.';
+}
+
+document.getElementById('signout-btn').onclick = () => signOut(auth);
+
+// ---------- AUTH STATE ----------
+onAuthStateChanged(auth, (user) => {
+  document.getElementById('loading').classList.add('hidden');
+  if (user) {
+    currentUid = user.uid;
+    document.getElementById('auth-view').classList.add('hidden');
+    document.getElementById('dash-view').classList.remove('hidden');
+    watchShop(user.uid);
+  } else {
+    currentUid = null;
+    if (unsubShop) { unsubShop(); unsubShop = null; }
+    document.getElementById('dash-view').classList.add('hidden');
+    document.getElementById('auth-view').classList.remove('hidden');
+    mode = 'login';
+    renderAuthMode();
+  }
+});
+
+// ---------- DASHBOARD ----------
+window.showTab = function (tab) {
+  document.getElementById('tab-panel').classList.toggle('hidden', tab !== 'panel');
+  document.getElementById('tab-settings').classList.toggle('hidden', tab !== 'settings');
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+};
+
+function watchShop(uid) {
+  const ref = doc(db, 'shops', uid);
+  unsubShop = onSnapshot(ref, (snap) => {
+    if (!snap.exists()) return;
+    shopData = snap.data();
+    renderDashboard();
+  });
+}
+
+function renderDashboard() {
+  document.getElementById('dash-shop-name').textContent = shopData.name;
+
+  document.getElementById('chairs-box').innerHTML = (shopData.chairs || []).map((num, i) => `
+    <div class="chair">
+      <div class="num">${num}</div>
+      <div class="chair-actions">
+        <button class="btn-cancel" onclick="chairAction('cancel', ${i})">Annuler</button>
+        <button class="btn-absent" onclick="chairAction('absent', ${i})">Absent</button>
+        <button class="btn-finish" onclick="chairAction('finish', ${i})">Terminé</button>
+      </div>
+    </div>
+  `).join('') || '<div class="muted">Aucun poste actif</div>';
+
+  const missed = shopData.missed || [];
+  document.getElementById('missed-card').style.display = missed.length ? 'block' : 'none';
+  document.getElementById('missed-box').innerHTML = missed.map(num => `
+    <div class="row">
+      <span>#${num}</span>
+      <button class="btn-ghost" onclick="recallMissed(${num})">Rappeler</button>
+    </div>
+  `).join('');
+
+  const waiting = shopData.waiting || [];
+  document.getElementById('waiting-count').textContent = waiting.length + ' en attente';
+  document.getElementById('waiting-box').textContent = waiting.join(', ') || 'Aucun';
+
+  if (!document.activeElement || document.activeElement.id !== 's-name') document.getElementById('s-name').value = shopData.name || '';
+  if (!document.activeElement || document.activeElement.id !== 's-phone') document.getElementById('s-phone').value = shopData.phone || '';
+  if (!document.activeElement || document.activeElement.id !== 's-capacity') document.getElementById('s-capacity').value = shopData.capacity || 50;
+
+  document.getElementById('shop-link').textContent = location.origin + location.pathname.replace('index.html', '') + 'client.html?shop=' + shopData.slug;
+}
+
+window.addChair = async function () {
+  const ref = doc(db, 'shops', currentUid);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data();
+    const waiting = [...(d.waiting || [])];
+    const chairs = [...(d.chairs || [])];
+    if (waiting.length > 0) chairs.push(waiting.shift());
+    tx.update(ref, { waiting, chairs });
+  });
+};
+
+window.chairAction = async function (action, index) {
+  const ref = doc(db, 'shops', currentUid);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data();
+    let waiting = [...(d.waiting || [])];
+    let chairs = [...(d.chairs || [])];
+    let missed = [...(d.missed || [])];
+    const num = chairs[index];
+
+    if (action === 'finish') {
+      if (waiting.length > 0) chairs[index] = waiting.shift();
+      else chairs.splice(index, 1);
+    } else if (action === 'absent') {
+      missed.push(num);
+      if (waiting.length > 0) chairs[index] = waiting.shift();
+      else chairs.splice(index, 1);
+    } else if (action === 'cancel') {
+      waiting.unshift(num);
+      chairs.splice(index, 1);
+    }
+    tx.update(ref, { waiting, chairs, missed });
+  });
+};
+
+window.recallMissed = async function (num) {
+  const ref = doc(db, 'shops', currentUid);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data();
+    const missed = (d.missed || []).filter(n => n !== num);
+    const chairs = [...(d.chairs || []), num];
+    tx.update(ref, { missed, chairs });
+  });
+};
+
+window.saveSettings = async function () {
+  const ref = doc(db, 'shops', currentUid);
+  await updateDoc(ref, {
+    name: document.getElementById('s-name').value.trim(),
+    phone: document.getElementById('s-phone').value.trim(),
+    capacity: parseInt(document.getElementById('s-capacity').value, 10) || 50
+  });
+};
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
+</body>
+</html>
