@@ -131,31 +131,31 @@
   </div>
   <div class="card">
     <div class="login-tabs">
-      <button id="tab-login-btn" class="active" onclick="setMode('login')">Connexion</button>
-      <button id="tab-signup-btn" onclick="setMode('signup')">Créer un compte</button>
+      <button id="tab-login-btn" class="active" onclick="setMode('login')" data-fr="Connexion" data-ar="تسجيل الدخول">Connexion</button>
+      <button id="tab-signup-btn" onclick="setMode('signup')" data-fr="Créer un compte" data-ar="إنشاء حساب">Créer un compte</button>
     </div>
 
     <div id="signup-fields" class="hidden">
-      <label>Nom du salon</label>
-      <input type="text" id="f-name" placeholder="Nom du salon">
-      <label>Téléphone</label>
+      <label data-fr="Nom du salon" data-ar="اسم الصالون">Nom du salon</label>
+      <input type="text" id="f-name" placeholder="Nom du salon" data-fr-placeholder="Nom du salon" data-ar-placeholder="اسم الصالون">
+      <label data-fr="Téléphone" data-ar="الهاتف">Téléphone</label>
       <input type="text" id="f-phone" placeholder="+222 XX XX XX XX">
-      <label>E-mail</label>
+      <label data-fr="E-mail" data-ar="البريد الإلكتروني">E-mail</label>
     </div>
-    <div id="login-email-label"><label>E-mail</label></div>
+    <div id="login-email-label"><label data-fr="E-mail" data-ar="البريد الإلكتروني">E-mail</label></div>
     <input type="email" id="f-email" placeholder="vous@exemple.com">
 
-    <label>Code PIN</label>
+    <label data-fr="Code PIN" data-ar="رمز PIN">Code PIN</label>
     <input type="password" id="f-pin" placeholder="••••" maxlength="6">
 
     <div id="confirm-wrap" class="hidden">
-      <label>Confirmer le code PIN</label>
+      <label data-fr="Confirmer le code PIN" data-ar="تأكيد رمز PIN">Confirmer le code PIN</label>
       <input type="password" id="f-pin2" placeholder="••••" maxlength="6">
     </div>
 
     <div class="error" id="auth-error"></div>
-    <button class="btn-primary" id="auth-submit" onclick="submitAuth()">Entrer</button>
-    <a class="login-forgot" id="forgot-link" onclick="forgotPassword()">Mot de passe oublié ?</a>
+    <button class="btn-primary" id="auth-submit" onclick="submitAuth()" data-fr="Entrer" data-ar="دخول">Entrer</button>
+    <a class="login-forgot" id="forgot-link" onclick="forgotPassword()" data-fr="Mot de passe oublié ?" data-ar="نسيت رمز PIN؟">Mot de passe oublié ?</a>
   </div>
 </div>
 
@@ -324,7 +324,9 @@ window.setLang = function (lang) {
   document.getElementById('lang-fr').classList.toggle('active', lang === 'fr');
   document.getElementById('lang-ar').classList.toggle('active', lang === 'ar');
   document.querySelectorAll('[data-fr]').forEach(el => { el.textContent = lang === 'ar' ? el.getAttribute('data-ar') : el.getAttribute('data-fr'); });
+  document.querySelectorAll('[data-fr-placeholder]').forEach(el => { el.placeholder = lang === 'ar' ? el.getAttribute('data-ar-placeholder') : el.getAttribute('data-fr-placeholder'); });
   if (shopData) renderDashboard();
+  if (!currentUid) renderAuthMode(); // title/subtitle depend on login-vs-signup mode, not covered by the generic sweep above
   localStorage.setItem('barberLang', lang);
 };
 
