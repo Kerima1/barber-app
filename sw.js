@@ -1,4 +1,4 @@
-const CACHE = "barber-v2";
+const CACHE = "barber-v4";
 
 self.addEventListener("install", function (e) {
   self.skipWaiting();
