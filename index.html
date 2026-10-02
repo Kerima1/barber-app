@@ -40,9 +40,11 @@
   .eyebrow { color: var(--dim); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
   label { display: block; font-size: 12px; font-weight: 600; color: var(--dim); margin: 10px 0 5px; }
   input[type=text], input[type=email], input[type=password], input[type=number] {
+    -webkit-appearance: none; appearance: none;
     width: 100%; padding: 12px 13px; border-radius: 10px; border: 1px solid var(--border);
     background: var(--surface-2); color: var(--text); font-size: 14px; font-family: inherit;
   }
+  input:focus { outline: none; border-color: var(--accent); }
   .btn-primary { width: 100%; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: 14px; font-weight: 700; font-size: 15px; margin-top: 14px; }
   .btn-ghost { width: 100%; padding: 12px; background: transparent; border: 1px dashed var(--border); color: var(--dim); border-radius: 12px; font-weight: 700; font-size: 13px; }
   .btn-small { background: transparent; border: 1px solid var(--border); color: var(--dim); border-radius: 8px; padding: 6px 11px; font-size: 11px; font-weight: 700; }
@@ -74,6 +76,10 @@
   .chair .num { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; }
   .chair-actions { display: flex; gap: 8px; }
   .chair-actions button { flex: 1; border-radius: 9px; padding: 11px 6px; font-size: 12.5px; font-weight: 700; border: none; }
+
+  .waiting-nums { display: flex; gap: 8px; flex-wrap: wrap; }
+  .waiting-nums span { font-family: 'Space Grotesk', sans-serif; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; font-size: 18px; color: var(--dim); }
+  .waiting-nums span.first { color: #fff; background: var(--accent); border-color: var(--accent); }
   .btn-finish { background: var(--accent); color: #fff; }
   .btn-absent { background: var(--surface); color: var(--dim); border: 1px solid var(--border) !important; }
   .btn-cancel { background: transparent; color: var(--danger); border: 1px solid var(--danger) !important; }
@@ -164,7 +170,6 @@
   <div class="hero-row">
     <div class="hero-icon" id="hero-icon"></div>
     <div class="hero-name" id="hero-name">—</div>
-    <button class="btn-small" style="margin-inline-start:auto; white-space:nowrap;" onclick="doSignOut()" data-fr="Déconnexion" data-ar="تسجيل الخروج">Déconnexion</button>
   </div>
 
   <div class="view-toggle">
@@ -183,8 +188,9 @@
       <div id="missed-box"></div>
     </div>
     <div class="card">
-      <div class="row"><div class="eyebrow" style="margin-bottom:0;" data-fr="En attente" data-ar="بالانتظار">En attente</div><span class="muted" id="waiting-count"></span></div>
-      <div id="waiting-box" class="muted" style="margin-top:8px;"></div>
+      <div class="row"><div class="eyebrow" style="margin-bottom:0;" data-fr="En attente" data-ar="بالانتظار">En attente</div></div>
+      <div class="waiting-nums" id="waiting-box"></div>
+      <div class="muted" id="waiting-count" style="margin-top:10px;"></div>
     </div>
   </div>
 
@@ -201,11 +207,29 @@
           </label>
         </div>
       </div>
-      <label data-fr="Nom" data-ar="الاسم">Nom</label>
-      <input type="text" id="s-name">
-      <label data-fr="Téléphone" data-ar="الهاتف">Téléphone</label>
-      <input type="text" id="s-phone">
-      <button class="btn-primary" onclick="saveSettings()" data-fr="Enregistrer" data-ar="حفظ">Enregistrer</button>
+      <div id="shop-info-view" style="margin-top:14px;">
+        <div class="row">
+          <div>
+            <div class="muted" data-fr="Nom" data-ar="الاسم">Nom</div>
+            <div id="shop-name-text" style="font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:700;">—</div>
+          </div>
+          <div>
+            <div class="muted" data-fr="Téléphone" data-ar="الهاتف">Téléphone</div>
+            <div id="shop-phone-text" style="font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:700;">—</div>
+          </div>
+        </div>
+        <button class="btn-small" style="margin-top:12px;" onclick="editShopInfo()" data-fr="Modifier" data-ar="تعديل">Modifier</button>
+      </div>
+      <div id="shop-info-edit" class="hidden" style="margin-top:14px;">
+        <label data-fr="Nom" data-ar="الاسم">Nom</label>
+        <input type="text" id="s-name">
+        <label data-fr="Téléphone" data-ar="الهاتف">Téléphone</label>
+        <input type="text" id="s-phone">
+        <div style="display:flex; gap:8px; margin-top:14px;">
+          <button class="btn-primary" style="margin-top:0; flex:1;" onclick="saveSettings()" data-fr="OK" data-ar="موافق">OK</button>
+          <button class="btn-small" style="flex:1;" onclick="cancelEditShopInfo()" data-fr="Annuler" data-ar="إلغاء">Annuler</button>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -250,6 +274,8 @@
       <button class="btn-ghost" onclick="copyShopLink()" id="copy-link-btn" data-fr="Copier le lien" data-ar="نسخ الرابط">Copier le lien</button>
       <button class="btn-ghost" style="margin-top:8px;" onclick="downloadQr()" data-fr="Télécharger le QR code" data-ar="تحميل رمز QR">Télécharger le QR code</button>
     </div>
+
+    <button class="btn-ghost" style="color:var(--danger); border-color:var(--danger);" onclick="doSignOut()" data-fr="Se déconnecter" data-ar="تسجيل الخروج">Se déconnecter</button>
   </div>
 </div>
 
@@ -484,12 +510,12 @@ function renderDashboard() {
     <div class="missed-chip"><div class="num">#${n}</div><button class="btn-small" onclick="askConfirm('recall', ${n})">${t('Rappeler','استدعاء')}</button></div>`).join('');
 
   const waiting = shopData.waiting || [];
-  document.getElementById('waiting-count').textContent = waiting.length + ' ' + t('en attente','بالانتظار');
-  document.getElementById('waiting-box').textContent = waiting.join(', ') || t('Aucun','لا يوجد');
+  document.getElementById('waiting-box').innerHTML = waiting.map((n, i) => `<span class="${i === 0 ? 'first' : ''}">${n}</span>`).join('')
+    || `<span style="opacity:.5;">${t('Aucun','لا يوجد')}</span>`;
+  document.getElementById('waiting-count').textContent = waiting.length > 0 ? waiting.length + ' ' + t('en attente au total','بالانتظار إجمالاً') : '';
 
-  const activeEl = document.activeElement;
-  if (!activeEl || activeEl.id !== 's-name') document.getElementById('s-name').value = shopData.name || '';
-  if (!activeEl || activeEl.id !== 's-phone') document.getElementById('s-phone').value = shopData.phone || '';
+  document.getElementById('shop-name-text').textContent = shopData.name || '—';
+  document.getElementById('shop-phone-text').textContent = shopData.phone || '—';
   document.getElementById('capacity-text').textContent = (shopData.nextTicket - 1) + ' / ' + (shopData.capacity || 50);
 
   document.getElementById('light-select-swatch').style.background = accentLight;
@@ -518,17 +544,52 @@ window.handleIconUpload = function (event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = async (e) => {
-    await updateDoc(doc(db, 'shops', currentUid), { logoUrl: e.target.result });
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = async () => {
+      // Phone photos can be several MB — Firestore documents max out at 1MB
+      // total, so the original upload was silently failing on real photos.
+      // Resize to a small square before storing, which also keeps the
+      // document light and fast to load everywhere it's used.
+      const size = 300;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const scale = Math.max(size / img.width, size / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      const compressed = canvas.toDataURL('image/jpeg', 0.82);
+
+      try {
+        await updateDoc(doc(db, 'shops', currentUid), { logoUrl: compressed });
+      } catch (err) {
+        alert(t('L\u2019image n\u2019a pas pu être enregistrée — réessayez avec une autre image.', 'تعذر حفظ الصورة — حاول بصورة أخرى.'));
+      }
+    };
+    img.onerror = () => alert(t('Ce fichier ne semble pas être une image valide.', 'يبدو أن هذا الملف ليس صورة صالحة.'));
+    img.src = e.target.result;
   };
+  reader.onerror = () => alert(t('Impossible de lire ce fichier.', 'تعذر قراءة هذا الملف.'));
   reader.readAsDataURL(file);
 };
 
+window.editShopInfo = function () {
+  document.getElementById('s-name').value = shopData.name || '';
+  document.getElementById('s-phone').value = shopData.phone || '';
+  document.getElementById('shop-info-view').classList.add('hidden');
+  document.getElementById('shop-info-edit').classList.remove('hidden');
+};
+window.cancelEditShopInfo = function () {
+  document.getElementById('shop-info-edit').classList.add('hidden');
+  document.getElementById('shop-info-view').classList.remove('hidden');
+};
 window.saveSettings = async function () {
   await updateDoc(doc(db, 'shops', currentUid), {
     name: document.getElementById('s-name').value.trim(),
     phone: document.getElementById('s-phone').value.trim()
   });
+  document.getElementById('shop-info-edit').classList.add('hidden');
+  document.getElementById('shop-info-view').classList.remove('hidden');
 };
 
 window.editCapacity = function () {
