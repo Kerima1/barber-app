@@ -2,7 +2,7 @@
 <html lang="fr" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Barber — File d'attente</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -89,7 +89,7 @@
   .ticket-modal-close { background: var(--surface-2); color: var(--text); }
   .ticket-modal-save { background: var(--accent); color: #fff; }
 
-  .ticket-template { position: fixed; left: -9999px; top: 0; width: 320px; padding: 36px 28px; background: #FFFFFF; color: #1E1033; font-family: 'Plus Jakarta Sans', sans-serif; text-align: center; }
+  .ticket-template { position: absolute; left: -9999px; top: 0; width: 320px; padding: 36px 28px; background: #FFFFFF; color: #1E1033; font-family: 'Plus Jakarta Sans', sans-serif; text-align: center; }
   .ticket-template .tt-shop { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 1px; }
   .ticket-template .tt-sub { font-size: 11px; color: #76767F; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
   .ticket-template .tt-rule { height: 1px; background: #E3E3EC; margin: 20px 0; }
@@ -165,6 +165,7 @@
 <div class="ticket-modal-overlay" id="ticket-modal-overlay">
   <div class="ticket-modal-card">
     <img id="ticket-image-preview" src="" alt="ticket">
+    <div style="font-size:11px; color:var(--dim); margin-bottom:12px;" data-fr="Astuce : un appui long sur l'image l'enregistre aussi directement" data-ar="نصيحة: الضغط مطولاً على الصورة يحفظها مباشرة أيضًا">Astuce : un appui long sur l'image l'enregistre aussi directement</div>
     <div class="ticket-modal-actions">
       <button class="ticket-modal-close" onclick="closeTicketModal()" data-fr="Fermer" data-ar="إغلاق">Fermer</button>
       <button class="ticket-modal-save" onclick="saveTicketImage()" data-fr="Enregistrer" data-ar="حفظ">Enregistrer</button>
@@ -207,10 +208,11 @@ window.toggleTheme = function () {
   html.setAttribute('data-theme', next);
   setThemeIcon(next);
   applyAccentForCurrentTheme();
+  localStorage.setItem('barberTheme', next);
 };
 function applyAutoTheme() {
-  const hour = new Date().getHours();
-  const theme = (hour >= 19 || hour < 6) ? 'dark' : 'light';
+  const saved = localStorage.getItem('barberTheme');
+  const theme = saved || ((new Date().getHours() >= 19 || new Date().getHours() < 6) ? 'dark' : 'light');
   document.documentElement.setAttribute('data-theme', theme);
   setThemeIcon(theme);
   applyAccentForCurrentTheme();
@@ -223,6 +225,7 @@ window.setLang = function (lang) {
   document.getElementById('lang-ar').classList.toggle('active', lang === 'ar');
   document.querySelectorAll('[data-fr]').forEach(el => { el.textContent = lang === 'ar' ? el.getAttribute('data-ar') : el.getAttribute('data-fr'); });
   if (shopData) render();
+  localStorage.setItem('barberLang', lang);
 };
 
 const slug = new URLSearchParams(location.search).get('shop');
@@ -230,23 +233,27 @@ let uid = null, shopData = null;
 const storageKey = 'myTicket_' + slug;
 let myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
 
-// per-shop manifest so "Add to Home Screen" reopens this exact shop
+// per-shop manifest so "Add to Home Screen" reopens this exact shop,
+// using THAT SHOP's own logo and name as the saved icon — not the generic one
 let manifestNamed = false;
-function setPerShopManifest(name) {
+function setPerShopManifest(name, logoUrl) {
   if (!slug) return;
+  const icons = logoUrl
+    ? [{ src: logoUrl, sizes: "192x192", type: "image/png", purpose: "any maskable" }]
+    : [
+        { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
+        { src: "icon-512.png", sizes: "512x512", type: "image/png" }
+      ];
   const m = {
     name: name || "Barber", short_name: name || "Barber",
     start_url: "client.html?shop=" + slug, scope: "./", display: "standalone",
     background_color: "#F3EEFB", theme_color: "#7C5CFF",
-    icons: [
-      { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
-      { src: "icon-512.png", sizes: "512x512", type: "image/png" }
-    ]
+    icons
   };
   const blob = new Blob([JSON.stringify(m)], { type: 'application/json' });
   document.querySelector('link[rel="manifest"]').href = URL.createObjectURL(blob);
 }
-setPerShopManifest(null);
+setPerShopManifest(null, null);
 
 async function init() {
   if (!slug) { showNotFound(); return; }
@@ -255,9 +262,13 @@ async function init() {
   uid = slugSnap.data().uid;
   onSnapshot(doc(db, 'shops', uid), (snap) => {
     if (!snap.exists()) { showNotFound(); return; }
+    const prevLogo = shopData?.logoUrl;
     shopData = snap.data();
     applyAccentForCurrentTheme();
-    if (!manifestNamed) { manifestNamed = true; setPerShopManifest(shopData.name); }
+    if (!manifestNamed || shopData.logoUrl !== prevLogo) {
+      manifestNamed = true;
+      setPerShopManifest(shopData.name, shopData.logoUrl);
+    }
     render();
   });
 }
@@ -355,7 +366,11 @@ window.takeNumber = async function () {
 // ---------- ticket image ----------
 let lastTicketImageUrl = null;
 window.generateTicketImage = function () {
-  if (myTicket === null || typeof window.html2canvas === 'undefined') return;
+  if (myTicket === null) return;
+  if (typeof window.html2canvas === 'undefined') {
+    alert(t('Le générateur d\u2019image n\u2019a pas pu se charger — vérifiez votre connexion et réessayez.', 'تعذر تحميل أداة إنشاء الصورة — تحقق من اتصالك وحاول مرة أخرى.'));
+    return;
+  }
   document.getElementById('tt-shop').textContent = (shopData.name || 'BARBER').toUpperCase();
   document.getElementById('tt-sub').textContent = t('Ticket de passage', 'تذكرة الدور');
   document.getElementById('tt-num').textContent = '#' + myTicket;
@@ -368,15 +383,29 @@ window.generateTicketImage = function () {
     lastTicketImageUrl = canvas.toDataURL('image/png');
     document.getElementById('ticket-image-preview').src = lastTicketImageUrl;
     document.getElementById('ticket-modal-overlay').classList.add('show');
+  }).catch(() => {
+    alert(t('La génération du ticket a échoué — réessayez.', 'فشل إنشاء التذكرة — حاول مرة أخرى.'));
   });
 };
 window.closeTicketModal = function () { document.getElementById('ticket-modal-overlay').classList.remove('show'); };
 window.saveTicketImage = function () {
   if (!lastTicketImageUrl) return;
-  const a = document.createElement('a'); a.href = lastTicketImageUrl; a.download = 'ticket-' + myTicket + '.png'; a.click();
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (isIOS) {
+    // iOS Safari silently ignores the download attribute — opening the
+    // image directly is what actually lets someone long-press → Save Image
+    window.open(lastTicketImageUrl, '_blank');
+  } else {
+    const a = document.createElement('a');
+    a.href = lastTicketImageUrl;
+    a.download = 'ticket-' + myTicket + '.png';
+    a.click();
+  }
 };
 
 applyAutoTheme();
+const savedLang = localStorage.getItem('barberLang');
+if (savedLang) setLang(savedLang);
 init();
 </script>
 
