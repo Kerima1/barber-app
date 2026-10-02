@@ -3,69 +3,127 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Barber — File d'attente</title>
+<title>Barber — Espace propriétaire</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, sans-serif; background: #F3EEFB; color: #1E1033; min-height: 100vh; padding: 24px 16px; }
-  .wrap { max-width: 380px; margin: 0 auto; text-align: center; }
+  .wrap { max-width: 380px; margin: 0 auto; }
+  .card { background: #fff; border: 1px solid #E3E3EC; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
   h1 { font-size: 22px; margin-bottom: 4px; }
-  .muted { color: #76767F; font-size: 13px; }
-  .card { background: #fff; border: 1px solid #E3E3EC; border-radius: 16px; padding: 18px; margin: 16px 0; text-align: left; }
-  .label { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #76767F; margin-bottom: 10px; }
-  .plaques { display: flex; gap: 10px; flex-wrap: wrap; }
-  .plaque { background: #F3EEFB; border: 1px solid #E3E3EC; border-radius: 10px; padding: 14px 18px; font-size: 26px; font-weight: 700; }
-  .waiting-chip { display: inline-block; background: #F3EEFB; border: 1px solid #E3E3EC; border-radius: 8px; padding: 8px 12px; margin: 3px; font-weight: 700; }
-  .waiting-chip.first { background: #7C5CFF; color: #fff; border-color: #7C5CFF; }
+  .sub { color: #76767F; font-size: 13px; margin-bottom: 18px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #76767F; margin: 10px 0 4px; }
+  input { width: 100%; padding: 11px 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; }
   button { cursor: pointer; font-family: inherit; }
-  .take-btn { width: 100%; padding: 16px; background: #7C5CFF; color: #fff; border: none; border-radius: 12px; font-weight: 700; font-size: 15px; }
-  .take-btn:disabled { opacity: 0.5; cursor: default; }
-  .ticket { display: none; text-align: center; padding: 20px; border: 1px dashed #7C5CFF; border-radius: 12px; margin-top: 14px; }
-  .ticket.show { display: block; }
-  .ticket.next-up { background: #7C5CFF; color: #fff; border: none; }
-  .ticket .num { font-size: 44px; font-weight: 700; }
-  #not-found { display: none; text-align: center; padding: 60px 0; color: #76767F; }
+  .btn-primary { width: 100%; padding: 13px; background: #7C5CFF; color: #fff; border: none; border-radius: 10px; font-weight: 700; margin-top: 16px; }
+  .btn-ghost { background: transparent; border: 1px solid #ddd; color: #444; border-radius: 8px; padding: 9px 12px; font-size: 12px; font-weight: 700; }
+  .link { text-align: center; margin-top: 14px; font-size: 13px; color: #7C5CFF; cursor: pointer; text-decoration: underline; }
+  .error { color: #D9463E; font-size: 13px; margin-top: 8px; display: none; }
+  .hidden { display: none !important; }
+  .chair { display: flex; flex-direction: column; gap: 10px; background: #F3EEFB; border: 1px solid #7C5CFF; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .chair .num { font-size: 26px; font-weight: 700; }
+  .chair-actions { display: flex; gap: 8px; }
+  .chair-actions button { flex: 1; padding: 9px; border-radius: 8px; border: none; font-size: 12px; font-weight: 700; }
+  .btn-finish { background: #7C5CFF; color: #fff; }
+  .btn-absent { background: #eee; color: #555; }
+  .btn-cancel { background: transparent; border: 1px solid #D9463E; color: #D9463E; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .tabs button { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: #fff; font-weight: 700; font-size: 13px; }
+  .tabs button.active { background: #7C5CFF; color: #fff; border-color: #7C5CFF; }
+  .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 14px; }
+  .muted { color: #76767F; font-size: 12px; }
+  #loading { text-align: center; padding: 60px 0; color: #76767F; }
 </style>
 </head>
 <body>
-<div class="wrap" id="app">
+<div class="wrap">
 
-  <h1 id="shop-name">—</h1>
-  <div class="muted" id="shop-phone"></div>
+  <div id="loading">Chargement…</div>
 
-  <div class="card">
-    <div class="label">En cours</div>
-    <div class="plaques" id="serving-row"></div>
+  <!-- AUTH -->
+  <div id="auth-view" class="hidden">
+    <div class="card">
+      <h1 id="auth-title">Connexion</h1>
+      <div class="sub" id="auth-sub">Connecte-toi à ton compte propriétaire.</div>
+
+      <div id="signup-fields" class="hidden">
+        <label>Nom du salon</label>
+        <input id="f-name" placeholder="Nom du salon">
+        <label>Téléphone</label>
+        <input id="f-phone" placeholder="+222 XX XX XX XX">
+      </div>
+
+      <label>E-mail</label>
+      <input id="f-email" type="email" placeholder="vous@exemple.com">
+
+      <label>Code PIN</label>
+      <input id="f-pin" type="password" placeholder="••••" maxlength="6">
+
+      <div id="confirm-wrap" class="hidden">
+        <label>Confirmer le code PIN</label>
+        <input id="f-pin2" type="password" placeholder="••••" maxlength="6">
+      </div>
+
+      <div class="error" id="auth-error"></div>
+      <button class="btn-primary" id="auth-submit">Entrer</button>
+      <div class="link" id="auth-toggle">Pas de compte ? Créer un compte</div>
+    </div>
   </div>
 
-  <div class="card" id="missed-card" style="display:none;">
-    <div class="label">Appelé(e) — merci de vous présenter</div>
-    <div id="missed-row"></div>
+  <!-- DASHBOARD -->
+  <div id="dash-view" class="hidden">
+    <div class="row">
+      <h1 id="dash-shop-name" style="font-size:18px;">—</h1>
+      <button class="btn-ghost" id="signout-btn">Déconnexion</button>
+    </div>
+
+    <div class="tabs">
+      <button class="active" data-tab="panel" onclick="showTab('panel')">Panneau</button>
+      <button data-tab="settings" onclick="showTab('settings')">Réglages</button>
+    </div>
+
+    <div id="tab-panel">
+      <div class="card">
+        <div class="row"><strong>Postes en cours</strong></div>
+        <div id="chairs-box"></div>
+        <button class="btn-ghost" style="width:100%; margin-top:4px;" onclick="addChair()">+ Ajouter un poste</button>
+      </div>
+      <div class="card" id="missed-card" style="display:none;">
+        <div class="row"><strong>Ne s'est pas présenté</strong></div>
+        <div id="missed-box"></div>
+      </div>
+      <div class="card">
+        <div class="row"><strong>En attente</strong><span class="muted" id="waiting-count"></span></div>
+        <div id="waiting-box" class="muted"></div>
+      </div>
+    </div>
+
+    <div id="tab-settings" class="hidden">
+      <div class="card">
+        <label>Nom du salon</label>
+        <input id="s-name">
+        <label>Téléphone</label>
+        <input id="s-phone">
+        <label>Capacité du jour</label>
+        <input id="s-capacity" type="number" min="1">
+        <button class="btn-primary" onclick="saveSettings()">Enregistrer</button>
+      </div>
+      <div class="card">
+        <div class="row"><strong>Lien client de ce salon</strong></div>
+        <div id="shop-link" class="muted" style="word-break:break-all;"></div>
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <div class="label">Prochains numéros</div>
-    <div id="waiting-row"></div>
-  </div>
-
-  <button class="take-btn" id="take-btn">Prendre mon numéro</button>
-
-  <div class="ticket" id="ticket">
-    <div class="muted">Votre numéro</div>
-    <div class="num" id="ticket-num">—</div>
-    <div class="muted" id="ticket-status">Attente estimée</div>
-  </div>
-
-</div>
-
-<div id="not-found">
-  <p>Ce salon n'a pas été trouvé.</p>
-  <p class="muted">Vérifiez le lien ou le QR code que vous avez scanné.</p>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, onSnapshot, runTransaction
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, runTransaction, enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -78,116 +136,221 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
+// keeps the last-seen queue visible and queues actions to sync automatically
+// once the connection comes back — doesn't work if two devices change the
+// same shop while both are offline at once, but covers normal brief drops.
+enableIndexedDbPersistence(db).catch(() => {});
 
-const slug = new URLSearchParams(location.search).get('shop');
-let uid = null;
+let mode = 'login'; // 'login' | 'signup'
+let currentUid = null;
+let unsubShop = null;
 let shopData = null;
 
-// "my ticket" is remembered on this device for this specific shop,
-// so closing and reopening the page still shows the same ticket.
-const storageKey = 'myTicket_' + slug;
-let myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
+function slugify(name) {
+  return name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'salon';
+}
 
-async function init() {
-  if (!slug) { showNotFound(); return; }
-  const slugSnap = await getDoc(doc(db, 'slugs', slug));
-  if (!slugSnap.exists()) { showNotFound(); return; }
-  uid = slugSnap.data().uid;
-  onSnapshot(doc(db, 'shops', uid), (snap) => {
-    if (!snap.exists()) { showNotFound(); return; }
+// ---------- AUTH UI ----------
+function renderAuthMode() {
+  document.getElementById('auth-error').style.display = 'none';
+  if (mode === 'signup') {
+    document.getElementById('auth-title').textContent = 'Créer un compte';
+    document.getElementById('auth-sub').textContent = "Configure ton salon et choisis un code PIN.";
+    document.getElementById('signup-fields').classList.remove('hidden');
+    document.getElementById('confirm-wrap').classList.remove('hidden');
+    document.getElementById('auth-toggle').textContent = 'Déjà un compte ? Se connecter';
+  } else {
+    document.getElementById('auth-title').textContent = 'Connexion';
+    document.getElementById('auth-sub').textContent = 'Connecte-toi à ton compte propriétaire.';
+    document.getElementById('signup-fields').classList.add('hidden');
+    document.getElementById('confirm-wrap').classList.add('hidden');
+    document.getElementById('auth-toggle').textContent = 'Pas de compte ? Créer un compte';
+  }
+}
+
+document.getElementById('auth-toggle').onclick = () => {
+  mode = mode === 'login' ? 'signup' : 'login';
+  renderAuthMode();
+};
+
+document.getElementById('auth-submit').onclick = async () => {
+  const email = document.getElementById('f-email').value.trim();
+  const pin = document.getElementById('f-pin').value.trim();
+  const errEl = document.getElementById('auth-error');
+  errEl.style.display = 'none';
+
+  try {
+    if (mode === 'signup') {
+      const name = document.getElementById('f-name').value.trim();
+      const phone = document.getElementById('f-phone').value.trim();
+      const pin2 = document.getElementById('f-pin2').value.trim();
+      if (!name || !email || !pin) throw new Error('Remplis le nom, l\u2019e-mail et un code PIN.');
+      if (pin !== pin2) throw new Error('Les deux codes PIN ne correspondent pas.');
+      if (pin.length < 4) throw new Error('Le code PIN doit faire au moins 4 chiffres.');
+
+      const cred = await createUserWithEmailAndPassword(auth, email, pin);
+      const uid = cred.user.uid;
+      const slug = slugify(name);
+
+      await setDoc(doc(db, 'slugs', slug), { uid });
+      await setDoc(doc(db, 'shops', uid), {
+        name, phone, email, slug,
+        capacity: 50,
+        nextTicket: 1,
+        waiting: [],
+        chairs: [],
+        missed: [],
+        createdAt: Date.now()
+      });
+      // onAuthStateChanged below picks it up from here
+    } else {
+      if (!email || !pin) throw new Error('Entre ton e-mail et ton code PIN.');
+      await signInWithEmailAndPassword(auth, email, pin);
+    }
+  } catch (e) {
+    errEl.textContent = friendlyError(e);
+    errEl.style.display = 'block';
+  }
+};
+
+function friendlyError(e) {
+  const code = e.code || '';
+  if (code.includes('wrong-password') || code.includes('invalid-credential')) return 'Code PIN incorrect.';
+  if (code.includes('user-not-found')) return 'Aucun compte avec cet e-mail.';
+  if (code.includes('email-already-in-use')) return 'Un compte existe déjà avec cet e-mail.';
+  if (code.includes('weak-password')) return 'Le code PIN est trop court (minimum 6 caractères pour Firebase).';
+  return e.message || 'Une erreur est survenue.';
+}
+
+document.getElementById('signout-btn').onclick = () => signOut(auth);
+
+// ---------- AUTH STATE ----------
+onAuthStateChanged(auth, (user) => {
+  document.getElementById('loading').classList.add('hidden');
+  if (user) {
+    currentUid = user.uid;
+    document.getElementById('auth-view').classList.add('hidden');
+    document.getElementById('dash-view').classList.remove('hidden');
+    watchShop(user.uid);
+  } else {
+    currentUid = null;
+    if (unsubShop) { unsubShop(); unsubShop = null; }
+    document.getElementById('dash-view').classList.add('hidden');
+    document.getElementById('auth-view').classList.remove('hidden');
+    mode = 'login';
+    renderAuthMode();
+  }
+});
+
+// ---------- DASHBOARD ----------
+window.showTab = function (tab) {
+  document.getElementById('tab-panel').classList.toggle('hidden', tab !== 'panel');
+  document.getElementById('tab-settings').classList.toggle('hidden', tab !== 'settings');
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+};
+
+function watchShop(uid) {
+  const ref = doc(db, 'shops', uid);
+  unsubShop = onSnapshot(ref, (snap) => {
+    if (!snap.exists()) return;
     shopData = snap.data();
-    render();
+    renderDashboard();
   });
 }
 
-function showNotFound() {
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('not-found').style.display = 'block';
-}
+function renderDashboard() {
+  document.getElementById('dash-shop-name').textContent = shopData.name;
 
-function render() {
-  document.getElementById('shop-name').textContent = shopData.name;
-  document.getElementById('shop-phone').textContent = shopData.phone || '';
-
-  const chairs = shopData.chairs || [];
-  document.getElementById('serving-row').innerHTML = chairs.map(n => `<div class="plaque">${n}</div>`).join('')
-    || '<span class="muted">Aucun poste actif</span>';
+  document.getElementById('chairs-box').innerHTML = (shopData.chairs || []).map((num, i) => `
+    <div class="chair">
+      <div class="num">${num}</div>
+      <div class="chair-actions">
+        <button class="btn-cancel" onclick="chairAction('cancel', ${i})">Annuler</button>
+        <button class="btn-absent" onclick="chairAction('absent', ${i})">Absent</button>
+        <button class="btn-finish" onclick="chairAction('finish', ${i})">Terminé</button>
+      </div>
+    </div>
+  `).join('') || '<div class="muted">Aucun poste actif</div>';
 
   const missed = shopData.missed || [];
   document.getElementById('missed-card').style.display = missed.length ? 'block' : 'none';
-  document.getElementById('missed-row').innerHTML = missed.map(n => `<span class="waiting-chip">${n}</span>`).join('');
+  document.getElementById('missed-box').innerHTML = missed.map(num => `
+    <div class="row">
+      <span>#${num}</span>
+      <button class="btn-ghost" onclick="recallMissed(${num})">Rappeler</button>
+    </div>
+  `).join('');
 
   const waiting = shopData.waiting || [];
-  const shown = waiting.slice(0, 6);
-  const extra = waiting.length - shown.length;
-  document.getElementById('waiting-row').innerHTML =
-    shown.map((n, i) => `<span class="waiting-chip ${i === 0 ? 'first' : ''}">${n}</span>`).join('')
-    + (extra > 0 ? `<span class="waiting-chip">+${extra}</span>` : '')
-    || '<span class="muted">Aucun</span>';
+  document.getElementById('waiting-count').textContent = waiting.length + ' en attente';
+  document.getElementById('waiting-box').textContent = waiting.join(', ') || 'Aucun';
 
-  const full = shopData.nextTicket > (shopData.capacity || 50);
-  const takeBtn = document.getElementById('take-btn');
-  if (myTicket === null) {
-    takeBtn.disabled = full;
-    takeBtn.textContent = full ? 'File complète pour aujourd\u2019hui' : 'Prendre mon numéro';
-    takeBtn.style.display = 'block';
-  } else {
-    takeBtn.style.display = 'none';
-  }
+  if (!document.activeElement || document.activeElement.id !== 's-name') document.getElementById('s-name').value = shopData.name || '';
+  if (!document.activeElement || document.activeElement.id !== 's-phone') document.getElementById('s-phone').value = shopData.phone || '';
+  if (!document.activeElement || document.activeElement.id !== 's-capacity') document.getElementById('s-capacity').value = shopData.capacity || 50;
 
-  renderMyTicket(chairs, waiting, missed);
+  document.getElementById('shop-link').textContent = location.origin + location.pathname.replace('index.html', '') + 'client.html?shop=' + shopData.slug;
 }
 
-function renderMyTicket(chairs, waiting, missed) {
-  const ticketEl = document.getElementById('ticket');
-  const statusEl = document.getElementById('ticket-status');
-  if (myTicket === null) { ticketEl.classList.remove('show'); return; }
-
-  const stillTracked = chairs.includes(myTicket) || waiting.includes(myTicket) || missed.includes(myTicket);
-  if (!stillTracked) {
-    // the barber finished this number — clear it automatically
-    myTicket = null;
-    localStorage.removeItem(storageKey);
-    ticketEl.classList.remove('show', 'next-up');
-    document.getElementById('take-btn').style.display = 'block';
-    return;
-  }
-
-  ticketEl.classList.add('show');
-  document.getElementById('ticket-num').textContent = '#' + myTicket;
-
-  if (missed.includes(myTicket)) {
-    ticketEl.classList.add('next-up');
-    statusEl.textContent = 'On vous a appelé — merci de vous présenter';
-  } else if (chairs.includes(myTicket)) {
-    ticketEl.classList.remove('next-up');
-    statusEl.textContent = "C'est votre tour — dirigez-vous vers le poste";
-  } else if (waiting[0] === myTicket) {
-    ticketEl.classList.add('next-up');
-    statusEl.textContent = 'Vous êtes le prochain !';
-  } else {
-    ticketEl.classList.remove('next-up');
-    statusEl.textContent = 'Attente estimée : 20 min';
-  }
-}
-
-document.getElementById('take-btn').onclick = async () => {
-  if (!uid) return;
-  const ref = doc(db, 'shops', uid);
-  const newTicket = await runTransaction(db, async (tx) => {
+window.addChair = async function () {
+  const ref = doc(db, 'shops', currentUid);
+  await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     const d = snap.data();
-    const n = d.nextTicket;
-    const waiting = [...(d.waiting || []), n];
-    tx.update(ref, { nextTicket: n + 1, waiting });
-    return n;
+    const waiting = [...(d.waiting || [])];
+    const chairs = [...(d.chairs || [])];
+    if (waiting.length > 0) chairs.push(waiting.shift());
+    tx.update(ref, { waiting, chairs });
   });
-  myTicket = newTicket;
-  localStorage.setItem(storageKey, String(newTicket));
 };
 
-init();
+window.chairAction = async function (action, index) {
+  const ref = doc(db, 'shops', currentUid);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data();
+    let waiting = [...(d.waiting || [])];
+    let chairs = [...(d.chairs || [])];
+    let missed = [...(d.missed || [])];
+    const num = chairs[index];
+
+    if (action === 'finish') {
+      if (waiting.length > 0) chairs[index] = waiting.shift();
+      else chairs.splice(index, 1);
+    } else if (action === 'absent') {
+      missed.push(num);
+      if (waiting.length > 0) chairs[index] = waiting.shift();
+      else chairs.splice(index, 1);
+    } else if (action === 'cancel') {
+      waiting.unshift(num);
+      chairs.splice(index, 1);
+    }
+    tx.update(ref, { waiting, chairs, missed });
+  });
+};
+
+window.recallMissed = async function (num) {
+  const ref = doc(db, 'shops', currentUid);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data();
+    const missed = (d.missed || []).filter(n => n !== num);
+    const chairs = [...(d.chairs || []), num];
+    tx.update(ref, { missed, chairs });
+  });
+};
+
+window.saveSettings = async function () {
+  const ref = doc(db, 'shops', currentUid);
+  await updateDoc(ref, {
+    name: document.getElementById('s-name').value.trim(),
+    phone: document.getElementById('s-phone').value.trim(),
+    capacity: parseInt(document.getElementById('s-capacity').value, 10) || 50
+  });
+};
 </script>
 </body>
 </html>
