@@ -2,7 +2,7 @@
 <html lang="fr" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Barber — Espace propriétaire</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -164,7 +164,7 @@
   <div class="hero-row">
     <div class="hero-icon" id="hero-icon"></div>
     <div class="hero-name" id="hero-name">—</div>
-    <button class="btn-small" style="margin-left:auto;" onclick="doSignOut()" data-fr="Déconnexion" data-ar="تسجيل الخروج">Déconnexion</button>
+    <button class="btn-small" style="margin-inline-start:auto; white-space:nowrap;" onclick="doSignOut()" data-fr="Déconnexion" data-ar="تسجيل الخروج">Déconnexion</button>
   </div>
 
   <div class="view-toggle">
@@ -195,8 +195,8 @@
         <div class="hero-icon" id="settings-icon" style="width:60px; height:60px;"></div>
         <div>
           <div class="muted" style="margin-bottom:6px;" data-fr="Icône du salon" data-ar="أيقونة الصالون">Icône du salon</div>
-          <label class="btn-small" style="display:inline-block; cursor:pointer;" data-fr="Choisir une image" data-ar="اختر صورة">
-            Choisir une image
+          <label class="btn-small" style="display:inline-block; cursor:pointer;">
+            <span data-fr="Choisir une image" data-ar="اختر صورة">Choisir une image</span>
             <input type="file" accept="image/*" id="icon-input" onchange="handleIconUpload(event)" class="hidden">
           </label>
         </div>
@@ -306,10 +306,13 @@ window.toggleTheme = function () {
   html.setAttribute('data-theme', next);
   setThemeIcon(next);
   applyAccentForCurrentTheme();
+  localStorage.setItem('barberTheme', next); // remember the manual choice for next visit
 };
 function applyAutoTheme() {
-  const hour = new Date().getHours();
-  const theme = (hour >= 19 || hour < 6) ? 'dark' : 'light';
+  // a manual choice made earlier always wins; only guess by time of day
+  // if the person has never picked one themselves
+  const saved = localStorage.getItem('barberTheme');
+  const theme = saved || ((new Date().getHours() >= 19 || new Date().getHours() < 6) ? 'dark' : 'light');
   document.documentElement.setAttribute('data-theme', theme);
   setThemeIcon(theme);
   applyAccentForCurrentTheme();
@@ -322,6 +325,7 @@ window.setLang = function (lang) {
   document.getElementById('lang-ar').classList.toggle('active', lang === 'ar');
   document.querySelectorAll('[data-fr]').forEach(el => { el.textContent = lang === 'ar' ? el.getAttribute('data-ar') : el.getAttribute('data-fr'); });
   if (shopData) renderDashboard();
+  localStorage.setItem('barberLang', lang);
 };
 
 function slugify(name) {
@@ -645,6 +649,11 @@ window.confirmModal = async function () {
 };
 
 applyAutoTheme();
+renderColorDropdown('light', LIGHT_COLOR_OPTIONS);
+renderColorDropdown('dark', DARK_COLOR_OPTIONS);
+renderPresets();
+const savedLang = localStorage.getItem('barberLang');
+if (savedLang) setLang(savedLang);
 </script>
 
 <script>
