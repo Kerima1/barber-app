@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Barber — File d'attente</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #F3EEFB; color: #1E1033; min-height: 100vh; padding: 24px 16px; }
+  .wrap { max-width: 380px; margin: 0 auto; text-align: center; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .muted { color: #76767F; font-size: 13px; }
+  .card { background: #fff; border: 1px solid #E3E3EC; border-radius: 16px; padding: 18px; margin: 16px 0; text-align: left; }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #76767F; margin-bottom: 10px; }
+  .plaques { display: flex; gap: 10px; flex-wrap: wrap; }
+  .plaque { background: #F3EEFB; border: 1px solid #E3E3EC; border-radius: 10px; padding: 14px 18px; font-size: 26px; font-weight: 700; }
+  .waiting-chip { display: inline-block; background: #F3EEFB; border: 1px solid #E3E3EC; border-radius: 8px; padding: 8px 12px; margin: 3px; font-weight: 700; }
+  .waiting-chip.first { background: #7C5CFF; color: #fff; border-color: #7C5CFF; }
+  button { cursor: pointer; font-family: inherit; }
+  .take-btn { width: 100%; padding: 16px; background: #7C5CFF; color: #fff; border: none; border-radius: 12px; font-weight: 700; font-size: 15px; }
+  .take-btn:disabled { opacity: 0.5; cursor: default; }
+  .ticket { display: none; text-align: center; padding: 20px; border: 1px dashed #7C5CFF; border-radius: 12px; margin-top: 14px; }
+  .ticket.show { display: block; }
+  .ticket.next-up { background: #7C5CFF; color: #fff; border: none; }
+  .ticket .num { font-size: 44px; font-weight: 700; }
+  #not-found { display: none; text-align: center; padding: 60px 0; color: #76767F; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+
+  <h1 id="shop-name">—</h1>
+  <div class="muted" id="shop-phone"></div>
+
+  <div class="card">
+    <div class="label">En cours</div>
+    <div class="plaques" id="serving-row"></div>
+  </div>
+
+  <div class="card" id="missed-card" style="display:none;">
+    <div class="label">Appelé(e) — merci de vous présenter</div>
+    <div id="missed-row"></div>
+  </div>
+
+  <div class="card">
+    <div class="label">Prochains numéros</div>
+    <div id="waiting-row"></div>
+  </div>
+
+  <button class="take-btn" id="take-btn">Prendre mon numéro</button>
+
+  <div class="ticket" id="ticket">
+    <div class="muted">Votre numéro</div>
+    <div class="num" id="ticket-num">—</div>
+    <div class="muted" id="ticket-status">Attente estimée</div>
+  </div>
+
+</div>
+
+<div id="not-found">
+  <p>Ce salon n'a pas été trouvé.</p>
+  <p class="muted">Vérifiez le lien ou le QR code que vous avez scanné.</p>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, onSnapshot, runTransaction
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA9JdUkigDQaxiAqfMX1k0D32iEOqSL5xs",
+  authDomain: "barber-app-90f5d.firebaseapp.com",
+  projectId: "barber-app-90f5d",
+  storageBucket: "barber-app-90f5d.firebasestorage.app",
+  messagingSenderId: "638654190129",
+  appId: "1:638654190129:web:2bc706db7090fa8087bb10"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const slug = new URLSearchParams(location.search).get('shop');
+let uid = null;
+let shopData = null;
+
+// "my ticket" is remembered on this device for this specific shop,
+// so closing and reopening the page still shows the same ticket.
+const storageKey = 'myTicket_' + slug;
+let myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
+
+async function init() {
+  if (!slug) { showNotFound(); return; }
+  const slugSnap = await getDoc(doc(db, 'slugs', slug));
+  if (!slugSnap.exists()) { showNotFound(); return; }
+  uid = slugSnap.data().uid;
+  onSnapshot(doc(db, 'shops', uid), (snap) => {
+    if (!snap.exists()) { showNotFound(); return; }
+    shopData = snap.data();
+    render();
+  });
+}
+
+function showNotFound() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('not-found').style.display = 'block';
+}
+
+function render() {
+  document.getElementById('shop-name').textContent = shopData.name;
+  document.getElementById('shop-phone').textContent = shopData.phone || '';
+
+  const chairs = shopData.chairs || [];
+  document.getElementById('serving-row').innerHTML = chairs.map(n => `<div class="plaque">${n}</div>`).join('')
+    || '<span class="muted">Aucun poste actif</span>';
+
+  const missed = shopData.missed || [];
+  document.getElementById('missed-card').style.display = missed.length ? 'block' : 'none';
+  document.getElementById('missed-row').innerHTML = missed.map(n => `<span class="waiting-chip">${n}</span>`).join('');
+
+  const waiting = shopData.waiting || [];
+  const shown = waiting.slice(0, 6);
+  const extra = waiting.length - shown.length;
+  document.getElementById('waiting-row').innerHTML =
+    shown.map((n, i) => `<span class="waiting-chip ${i === 0 ? 'first' : ''}">${n}</span>`).join('')
+    + (extra > 0 ? `<span class="waiting-chip">+${extra}</span>` : '')
+    || '<span class="muted">Aucun</span>';
+
+  const full = shopData.nextTicket > (shopData.capacity || 50);
+  const takeBtn = document.getElementById('take-btn');
+  if (myTicket === null) {
+    takeBtn.disabled = full;
+    takeBtn.textContent = full ? 'File complète pour aujourd\u2019hui' : 'Prendre mon numéro';
+    takeBtn.style.display = 'block';
+  } else {
+    takeBtn.style.display = 'none';
+  }
+
+  renderMyTicket(chairs, waiting, missed);
+}
+
+function renderMyTicket(chairs, waiting, missed) {
+  const ticketEl = document.getElementById('ticket');
+  const statusEl = document.getElementById('ticket-status');
+  if (myTicket === null) { ticketEl.classList.remove('show'); return; }
+
+  const stillTracked = chairs.includes(myTicket) || waiting.includes(myTicket) || missed.includes(myTicket);
+  if (!stillTracked) {
+    // the barber finished this number — clear it automatically
+    myTicket = null;
+    localStorage.removeItem(storageKey);
+    ticketEl.classList.remove('show', 'next-up');
+    document.getElementById('take-btn').style.display = 'block';
+    return;
+  }
+
+  ticketEl.classList.add('show');
+  document.getElementById('ticket-num').textContent = '#' + myTicket;
+
+  if (missed.includes(myTicket)) {
+    ticketEl.classList.add('next-up');
+    statusEl.textContent = 'On vous a appelé — merci de vous présenter';
+  } else if (chairs.includes(myTicket)) {
+    ticketEl.classList.remove('next-up');
+    statusEl.textContent = "C'est votre tour — dirigez-vous vers le poste";
+  } else if (waiting[0] === myTicket) {
+    ticketEl.classList.add('next-up');
+    statusEl.textContent = 'Vous êtes le prochain !';
+  } else {
+    ticketEl.classList.remove('next-up');
+    statusEl.textContent = 'Attente estimée : 20 min';
+  }
+}
+
+document.getElementById('take-btn').onclick = async () => {
+  if (!uid) return;
+  const ref = doc(db, 'shops', uid);
+  const newTicket = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data();
+    const n = d.nextTicket;
+    const waiting = [...(d.waiting || []), n];
+    tx.update(ref, { nextTicket: n + 1, waiting });
+    return n;
+  });
+  myTicket = newTicket;
+  localStorage.setItem(storageKey, String(newTicket));
+};
+
+init();
+</script>
+</body>
+</html>
