@@ -1,4 +1,4 @@
-const CACHE = "barber-v5";
+const CACHE = "barber-v7";
 
 self.addEventListener("install", function (e) {
   self.skipWaiting();
@@ -36,7 +36,11 @@ self.addEventListener("fetch", function (e) {
       return response;
     }).catch(function () {
       return caches.match(e.request).then(function (cached) {
-        return cached || caches.match("index.html");
+        if (cached) return cached;
+        // No exact cached copy for this URL — fall back to the SAME kind of
+        // page (client vs owner), never cross the two.
+        var isClientPage = url.indexOf("client.html") >= 0;
+        return caches.match(isClientPage ? "client.html" : "index.html");
       });
     })
   );
