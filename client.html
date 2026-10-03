@@ -267,14 +267,37 @@ let manifestLinkEl = null;
 let appleTouchIconEl = null;
 let appleTitleEl = null;
 let manifestNamed = false;
-function setPerShopManifest(name, logoUrl) {
+function base64ToBlob(dataUrl) {
+  const [header, data] = dataUrl.split(',');
+  const mime = header.match(/:(.*?);/)[1];
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+async function cacheLogoForInstall(logoUrl) {
+  if (!logoUrl || !logoUrl.startsWith('data:') || !('caches' in window)) return false;
+  try {
+    const blob = base64ToBlob(logoUrl);
+    const cache = await caches.open('logo-cache');
+    const path = new URL('logo-cache/' + encodeURIComponent(slug) + '.png', location.href).toString();
+    await cache.put(path, new Response(blob, { headers: { 'Content-Type': 'image/png' } }));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function setPerShopManifest(name, logoUrl, hasCachedLogo) {
   if (!slug) return;
   // A real same-origin URL (handled by the service worker), not a blob: URL —
   // Chrome's install/installability system requires this to offer installing
-  // at all. The shop logo can't travel through a URL this way (base64 images
-  // are far too long), so Android/desktop installs use the generic icon;
-  // iOS gets the real logo through its own separate apple-touch-icon tag.
-  const manifestUrl = 'manifest.json?shop=' + encodeURIComponent(slug) + '&name=' + encodeURIComponent(name || 'Barber');
+  // at all. The shop logo itself can't travel through the URL (too long as
+  // base64), so instead it's cached locally (see cacheLogoForInstall above)
+  // under a real fetchable path, which the service worker serves directly.
+  let manifestUrl = 'manifest.json?shop=' + encodeURIComponent(slug) + '&name=' + encodeURIComponent(name || 'Barber');
+  if (hasCachedLogo) manifestUrl += '&hasLogo=1';
   if (!manifestLinkEl) {
     manifestLinkEl = document.createElement('link');
     manifestLinkEl.rel = 'manifest';
@@ -315,8 +338,12 @@ async function init() {
       applyAccentForCurrentTheme();
       if (!manifestNamed || shopData.logoUrl !== prevLogo) {
         manifestNamed = true;
-        try { setPerShopManifest(shopData.name, shopData.logoUrl); }
-        catch (e) { /* install-icon metadata failing should never block the actual page */ }
+        (async () => {
+          try {
+            const cached = await cacheLogoForInstall(shopData.logoUrl);
+            setPerShopManifest(shopData.name, shopData.logoUrl, cached);
+          } catch (e) { /* install-icon metadata failing should never block the actual page */ }
+        })();
       }
       render();
     }, () => showLoadError()); // onSnapshot's own error callback — fires if the live connection drops
