@@ -13,7 +13,9 @@
      can never be the first thing a browser sees -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Barber" id="apple-app-title">
+<!-- no static apple-mobile-web-app-title here on purpose, same reason as
+     the manifest/icon tags above — created fresh in JS once the real
+     shop name is known -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;900&display=swap');
@@ -166,6 +168,7 @@
 
 <!-- off-screen ticket template for image export -->
 <div class="ticket-template" id="ticket-template">
+  <img id="tt-logo" src="" alt="" style="display:none; width:56px; height:56px; border-radius:16px; object-fit:cover; margin:0 auto 10px;">
   <div class="tt-shop" id="tt-shop">BARBER</div>
   <div class="tt-sub" id="tt-sub">Ticket de passage</div>
   <div class="tt-rule"></div>
@@ -253,6 +256,7 @@ let myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(
 // has this shop's correct start_url baked in from the very first moment.
 let manifestLinkEl = null;
 let appleTouchIconEl = null;
+let appleTitleEl = null;
 let manifestNamed = false;
 function setPerShopManifest(name, logoUrl) {
   if (!slug) return;
@@ -275,7 +279,14 @@ function setPerShopManifest(name, logoUrl) {
     document.head.appendChild(manifestLinkEl);
   }
   manifestLinkEl.href = URL.createObjectURL(blob);
-  document.getElementById('apple-app-title').setAttribute('content', name || 'Barber');
+
+  if (!appleTitleEl) {
+    appleTitleEl = document.createElement('meta');
+    appleTitleEl.name = 'apple-mobile-web-app-title';
+    document.head.appendChild(appleTitleEl);
+  }
+  appleTitleEl.content = name || 'Barber';
+  if (name) document.title = name;
 
   // iOS specifically — the actual image it saves to the home screen
   if (!appleTouchIconEl) {
@@ -426,6 +437,13 @@ window.generateTicketImage = function () {
     alert(t('Le générateur d\u2019image n\u2019a pas pu se charger — vérifiez votre connexion et réessayez.', 'تعذر تحميل أداة إنشاء الصورة — تحقق من اتصالك وحاول مرة أخرى.'));
     return;
   }
+  const logoEl = document.getElementById('tt-logo');
+  if (shopData.logoUrl) {
+    logoEl.src = shopData.logoUrl;
+    logoEl.style.display = 'block';
+  } else {
+    logoEl.style.display = 'none';
+  }
   document.getElementById('tt-shop').textContent = (shopData.name || 'BARBER').toUpperCase();
   document.getElementById('tt-sub').textContent = t('Ticket de passage', 'تذكرة الدور');
   document.getElementById('tt-num').textContent = '#' + myTicket;
@@ -447,9 +465,12 @@ window.saveTicketImage = function () {
   if (!lastTicketImageUrl) return;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   if (isIOS) {
-    // iOS Safari silently ignores the download attribute — opening the
-    // image directly is what actually lets someone long-press → Save Image
-    window.open(lastTicketImageUrl, '_blank');
+    // Neither the download attribute nor window.open() with a long data:
+    // URI work reliably in Safari (the latter just opens a blank white
+    // page). The image is already visible right above this button in the
+    // modal — long-pressing it directly is the one method that actually
+    // works consistently on iOS.
+    alert(t('Appuyez longuement sur l\u2019image ci-dessus, puis "Enregistrer l\u2019image".', 'اضغط مطولاً على الصورة أعلاه، ثم اختر "حفظ الصورة".'));
   } else {
     const a = document.createElement('a');
     a.href = lastTicketImageUrl;
