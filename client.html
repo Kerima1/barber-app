@@ -253,6 +253,7 @@ let myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(
 // has this shop's correct start_url baked in from the very first moment.
 let manifestLinkEl = null;
 let appleTouchIconEl = null;
+let manifestNamed = false;
 function setPerShopManifest(name, logoUrl) {
   if (!slug) return;
   const icons = logoUrl
@@ -301,7 +302,8 @@ async function init() {
       applyAccentForCurrentTheme();
       if (!manifestNamed || shopData.logoUrl !== prevLogo) {
         manifestNamed = true;
-        setPerShopManifest(shopData.name, shopData.logoUrl);
+        try { setPerShopManifest(shopData.name, shopData.logoUrl); }
+        catch (e) { /* install-icon metadata failing should never block the actual page */ }
       }
       render();
     }, () => showLoadError()); // onSnapshot's own error callback — fires if the live connection drops
