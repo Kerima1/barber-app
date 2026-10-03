@@ -1,4 +1,4 @@
-const CACHE = "barber-v20";
+const CACHE = "barber-v21";
 
 self.addEventListener("install", function (e) {
   self.skipWaiting();
@@ -30,9 +30,36 @@ self.addEventListener("fetch", function (e) {
   // installability check requires before it'll offer "Install" at all.
   // We synthesize the response here instead of needing an actual file per shop.
   var reqUrl = new URL(url);
+
+  // A shop's own logo, cached locally by the page (see cacheLogoForInstall
+  // in client.html). This path never exists as a real file, so we must
+  // answer purely from the Cache API — never let this fall through to a
+  // real network request, which would just 404.
+  if (reqUrl.pathname.indexOf("/logo-cache/") >= 0) {
+    e.respondWith(
+      caches.open("logo-cache").then(function (c) {
+        return c.match(e.request).then(function (cached) {
+          return cached || new Response(null, { status: 404 });
+        });
+      })
+    );
+    return;
+  }
+
   if (reqUrl.pathname.endsWith("manifest.json") && reqUrl.searchParams.has("shop")) {
     var shop = reqUrl.searchParams.get("shop");
     var name = reqUrl.searchParams.get("name") || "Barber";
+    var hasLogo = reqUrl.searchParams.get("hasLogo") === "1";
+    var icons = hasLogo
+      ? [
+          { src: "logo-cache/" + shop + ".png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
+          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png" }
+        ]
+      : [
+          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png" }
+        ];
     var manifest = {
       id: "./client.html?shop=" + shop,
       name: name,
@@ -42,10 +69,7 @@ self.addEventListener("fetch", function (e) {
       display: "standalone",
       background_color: "#F3EEFB",
       theme_color: "#7C5CFF",
-      icons: [
-        { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
-        { src: "icon-512.png", sizes: "512x512", type: "image/png" }
-      ]
+      icons: icons
     };
     e.respondWith(new Response(JSON.stringify(manifest), {
       headers: { "Content-Type": "application/manifest+json" }
