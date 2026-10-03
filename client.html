@@ -156,6 +156,12 @@
   <p style="opacity:.7; font-size:13px; margin-top:6px;">Vérifiez le lien ou le QR code que vous avez scanné.</p>
 </div>
 
+<div id="load-error" style="display:none; text-align:center; padding:70px 0; color:var(--dim);">
+  <p>Impossible de charger les informations du salon.</p>
+  <p style="opacity:.7; font-size:13px; margin-top:6px;">Vérifiez votre connexion internet.</p>
+  <button class="take-btn" style="width:auto; padding:12px 24px; margin-top:16px; display:inline-block;" onclick="retryInit()">Réessayer</button>
+</div>
+
 <!-- off-screen ticket template for image export -->
 <div class="ticket-template" id="ticket-template">
   <div class="tt-shop" id="tt-shop">BARBER</div>
@@ -271,21 +277,35 @@ setPerShopManifest(null, null);
 
 async function init() {
   if (!slug) { showNotFound(); return; }
-  const slugSnap = await getDoc(doc(db, 'slugs', slug));
-  if (!slugSnap.exists()) { showNotFound(); return; }
-  uid = slugSnap.data().uid;
-  onSnapshot(doc(db, 'shops', uid), (snap) => {
-    if (!snap.exists()) { showNotFound(); return; }
-    const prevLogo = shopData?.logoUrl;
-    shopData = snap.data();
-    applyAccentForCurrentTheme();
-    if (!manifestNamed || shopData.logoUrl !== prevLogo) {
-      manifestNamed = true;
-      setPerShopManifest(shopData.name, shopData.logoUrl);
-    }
-    render();
-  });
+  document.getElementById('load-error').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  try {
+    const slugSnap = await getDoc(doc(db, 'slugs', slug));
+    if (!slugSnap.exists()) { showNotFound(); return; }
+    uid = slugSnap.data().uid;
+    onSnapshot(doc(db, 'shops', uid), (snap) => {
+      if (!snap.exists()) { showNotFound(); return; }
+      const prevLogo = shopData?.logoUrl;
+      shopData = snap.data();
+      applyAccentForCurrentTheme();
+      if (!manifestNamed || shopData.logoUrl !== prevLogo) {
+        manifestNamed = true;
+        setPerShopManifest(shopData.name, shopData.logoUrl);
+      }
+      render();
+    }, () => showLoadError()); // onSnapshot's own error callback — fires if the live connection drops
+  } catch (e) {
+    showLoadError();
+  }
 }
+
+function showLoadError() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('not-found').style.display = 'none';
+  document.getElementById('load-error').style.display = 'block';
+}
+window.retryInit = function () { init(); };
+
 function showNotFound() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('not-found').style.display = 'block';
