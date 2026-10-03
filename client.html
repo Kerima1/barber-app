@@ -98,13 +98,20 @@
   .ticket-modal-close { background: var(--surface-2); color: var(--text); }
   .ticket-modal-save { background: var(--accent); color: #fff; }
 
-  .ticket-template { position: absolute; left: -9999px; top: 0; width: 320px; padding: 36px 28px; background: #FFFFFF; color: #1E1033; font-family: 'Plus Jakarta Sans', sans-serif; text-align: center; }
-  .ticket-template .tt-shop { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 1px; }
-  .ticket-template .tt-sub { font-size: 11px; color: #76767F; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
-  .ticket-template .tt-rule { height: 1px; background: #E3E3EC; margin: 20px 0; }
-  .ticket-template .tt-num { font-family: 'Space Grotesk', sans-serif; font-size: 78px; font-weight: 700; color: #6C5CE7; line-height: 1; }
-  .ticket-template .tt-time { margin-top: 18px; font-size: 12px; color: #76767F; }
-  .ticket-template .tt-note { margin-top: 18px; font-size: 11px; color: #9A94AE; line-height: 1.5; }
+  .ticket-template {
+    position: absolute; left: -9999px; top: 0; width: 320px; padding: 10px;
+    border-radius: 30px; font-family: 'Plus Jakarta Sans', sans-serif; text-align: center;
+    background: linear-gradient(135deg, var(--tt-light, #7C5CFF), var(--tt-dark, #9C7CFF));
+  }
+  .ticket-template .tt-inner { background: #FFFFFF; border-radius: 22px; padding: 30px 24px; }
+  .ticket-template .tt-shop { font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; letter-spacing: .5px; color: #1E1033; }
+  .ticket-template .tt-sub { font-size: 10.5px; color: #9A94AE; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
+  .ticket-template .tt-divider { height: 4px; width: 64px; margin: 18px auto; border-radius: 4px; background: linear-gradient(90deg, var(--tt-light, #7C5CFF), var(--tt-dark, #9C7CFF)); }
+  .ticket-template .tt-num-wrap { border-radius: 20px; padding: 18px 10px; margin-bottom: 18px; background: var(--tt-num-bg, #F3EEFB); }
+  .ticket-template .tt-num { font-family: 'Space Grotesk', sans-serif; font-size: 72px; font-weight: 800; line-height: 1; color: var(--tt-dark, #6C5CE7); }
+  .ticket-template .tt-time { margin-top: 2px; font-size: 12px; color: #76767F; }
+  .ticket-template .tt-phone { margin-top: 2px; font-size: 12px; color: #76767F; }
+  .ticket-template .tt-note { margin-top: 16px; font-size: 10.5px; color: #B0A8C4; line-height: 1.5; }
 
   #not-found { display: none; text-align: center; padding: 70px 0; color: var(--dim); }
 </style>
@@ -168,14 +175,16 @@
 
 <!-- off-screen ticket template for image export -->
 <div class="ticket-template" id="ticket-template">
-  <img id="tt-logo" src="" alt="" style="display:none; width:56px; height:56px; border-radius:16px; object-fit:cover; margin:0 auto 10px;">
-  <div class="tt-shop" id="tt-shop">BARBER</div>
-  <div class="tt-sub" id="tt-sub">Ticket de passage</div>
-  <div class="tt-rule"></div>
-  <div class="tt-num" id="tt-num">8</div>
-  <div class="tt-time" id="tt-time">—</div>
-  <div class="tt-note" id="tt-note">Conservez ce ticket comme preuve de votre numéro</div>
-  <div class="tt-time" id="tt-phone" style="margin-top:6px;">—</div>
+  <div class="tt-inner">
+    <img id="tt-logo" src="" alt="" style="display:none; width:56px; height:56px; border-radius:16px; object-fit:cover; margin:0 auto 10px;">
+    <div class="tt-shop" id="tt-shop">BARBER</div>
+    <div class="tt-sub" id="tt-sub">Ticket de passage</div>
+    <div class="tt-divider"></div>
+    <div class="tt-num-wrap"><div class="tt-num" id="tt-num">8</div></div>
+    <div class="tt-time" id="tt-time">—</div>
+    <div class="tt-phone" id="tt-phone">—</div>
+    <div class="tt-note" id="tt-note">Conservez ce ticket comme preuve de votre numéro</div>
+  </div>
 </div>
 
 <div class="ticket-modal-overlay" id="ticket-modal-overlay">
@@ -431,12 +440,27 @@ window.takeNumber = async function () {
 
 // ---------- ticket image ----------
 let lastTicketImageUrl = null;
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 window.generateTicketImage = function () {
   if (myTicket === null) return;
   if (typeof window.html2canvas === 'undefined') {
     alert(t('Le générateur d\u2019image n\u2019a pas pu se charger — vérifiez votre connexion et réessayez.', 'تعذر تحميل أداة إنشاء الصورة — تحقق من اتصالك وحاول مرة أخرى.'));
     return;
   }
+  const light = shopData.accentLight || '#7C5CFF';
+  const dark = shopData.accentDark || '#9C7CFF';
+  const template = document.getElementById('ticket-template');
+  template.style.setProperty('--tt-light', light);
+  template.style.setProperty('--tt-dark', dark);
+  template.style.setProperty('--tt-num-bg', hexToRgba(light, 0.12));
+
   const logoEl = document.getElementById('tt-logo');
   if (shopData.logoUrl) {
     logoEl.src = shopData.logoUrl;
