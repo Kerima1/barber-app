@@ -1,4 +1,4 @@
-const CACHE = "barber-v17";
+const CACHE = "barber-v18";
 
 self.addEventListener("install", function (e) {
   self.skipWaiting();
@@ -33,13 +33,6 @@ self.addEventListener("fetch", function (e) {
   if (reqUrl.pathname.endsWith("manifest.json") && reqUrl.searchParams.has("shop")) {
     var shop = reqUrl.searchParams.get("shop");
     var name = reqUrl.searchParams.get("name") || "Barber";
-    var logo = reqUrl.searchParams.get("logo");
-    var icons = logo
-      ? [{ src: logo, sizes: "192x192", type: "image/png", purpose: "any maskable" }]
-      : [
-          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png" }
-        ];
     var manifest = {
       id: "./client.html?shop=" + shop,
       name: name,
@@ -49,7 +42,10 @@ self.addEventListener("fetch", function (e) {
       display: "standalone",
       background_color: "#F3EEFB",
       theme_color: "#7C5CFF",
-      icons: icons
+      icons: [
+        { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
+        { src: "icon-512.png", sizes: "512x512", type: "image/png" }
+      ]
     };
     e.respondWith(new Response(JSON.stringify(manifest), {
       headers: { "Content-Type": "application/manifest+json" }
