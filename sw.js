@@ -1,4 +1,4 @@
-const CACHE = "barber-v15";
+const CACHE = "barber-v16";
 
 self.addEventListener("install", function (e) {
   self.skipWaiting();
@@ -34,6 +34,7 @@ self.addEventListener("fetch", function (e) {
     var shop = reqUrl.searchParams.get("shop");
     var name = reqUrl.searchParams.get("name") || "Barber";
     var manifest = {
+      id: "./client.html?shop=" + shop,
       name: name,
       short_name: name,
       start_url: "client.html?shop=" + shop,
