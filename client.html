@@ -387,7 +387,9 @@ function renderMyTicket(chairs, waiting, missed) {
     localStorage.removeItem(storageKey);
     ticketEl.classList.remove('show', 'next-up');
     pdfBtn.style.display = 'none';
-    document.getElementById('take-btn').style.display = 'block';
+    const takeBtn = document.getElementById('take-btn');
+    takeBtn.style.display = 'block';
+    takeBtn.disabled = false;
     return;
   }
 
@@ -427,6 +429,8 @@ window.takeNumber = async function () {
     });
     myTicket = newTicket;
     localStorage.setItem(storageKey, String(newTicket));
+  } catch (e) {
+    takeBtn.disabled = false; // failed — let them try again immediately rather than staying stuck
   } finally {
     takingNumber = false;
   }
