@@ -121,32 +121,31 @@ self.addEventListener("fetch", function (e) {
       ];
     }
 
-var manifest = {
-  // IMPORTANT:
-  // Give every shop a completely different PWA identity.
-  // This prevents Samsung/Android from treating all shops
-  // as the same installed application.
-  id: "/barber-shop-" + encodeURIComponent(shop),
+    var manifest = {
+      // IMPORTANT: a real distinct path, not just a different query
+      // string on the same path — this is what actually makes Android
+      // treat each shop as a separate installed app, not merely a
+      // different "id" value on what looks like the same URL.
+      id: "/barber-shop-" + encodeURIComponent(shop),
 
-  name: name,
+      name: name,
 
-  short_name: name,
+      short_name: name,
 
-  // The actual page that opens when this shop's PWA is launched.
-  start_url:
-    "./client.html?shop=" +
-    encodeURIComponent(shop),
+      start_url:
+        "./client.html?shop=" +
+        encodeURIComponent(shop),
 
-  scope: "./",
+      scope: "./",
 
-  display: "standalone",
+      display: "standalone",
 
-  background_color: "#F3EEFB",
+      background_color: "#F3EEFB",
 
-  theme_color: "#7C5CFF",
+      theme_color: "#7C5CFF",
 
-  icons: icons
-};
+      icons: icons
+    };
 
     e.respondWith(
       new Response(
