@@ -7,6 +7,9 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Barber">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;900&display=swap');
@@ -46,7 +49,8 @@
   }
   input:focus { outline: none; border-color: var(--accent); }
   .btn-primary { width: 100%; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: 14px; font-weight: 700; font-size: 15px; margin-top: 14px; }
-  .btn-ghost { width: 100%; padding: 12px; background: transparent; border: 1px dashed var(--border); color: var(--dim); border-radius: 12px; font-weight: 700; font-size: 13px; }
+  .btn-ghost { width: 100%; padding: 13px; background: var(--surface-2); border: 1.5px solid var(--border); color: var(--text); border-radius: 12px; font-weight: 700; font-size: 13.5px; transition: transform .08s ease; }
+  .btn-ghost:active { transform: scale(0.98); background: var(--border); }
   .btn-small { background: transparent; border: 1px solid var(--border); color: var(--dim); border-radius: 8px; padding: 6px 11px; font-size: 11px; font-weight: 700; }
   .error { color: var(--danger); font-size: 13px; margin: 10px 0; display: none; text-align: left; }
   .muted { color: var(--dim); font-size: 12px; }
@@ -530,14 +534,21 @@ function renderDashboard() {
   if (typeof QRCode !== 'undefined') new QRCode(qrBox, { text: link, width: 160, height: 160, colorDark: '#1E1033', colorLight: '#ffffff' });
 }
 
+let addingChair = false;
 window.addChair = async function () {
-  const ref = doc(db, 'shops', currentUid);
-  await runTransaction(db, async (tx) => {
-    const d = (await tx.get(ref)).data();
-    const waiting = [...(d.waiting || [])], chairs = [...(d.chairs || [])];
-    if (waiting.length > 0) chairs.push(waiting.shift());
-    tx.update(ref, { waiting, chairs });
-  });
+  if (addingChair) return;
+  addingChair = true;
+  try {
+    const ref = doc(db, 'shops', currentUid);
+    await runTransaction(db, async (tx) => {
+      const d = (await tx.get(ref)).data();
+      const waiting = [...(d.waiting || [])], chairs = [...(d.chairs || [])];
+      if (waiting.length > 0) chairs.push(waiting.shift());
+      tx.update(ref, { waiting, chairs });
+    });
+  } finally {
+    addingChair = false;
+  }
 };
 
 window.handleIconUpload = function (event) {
@@ -558,7 +569,7 @@ window.handleIconUpload = function (event) {
       const scale = Math.max(size / img.width, size / img.height);
       const w = img.width * scale, h = img.height * scale;
       ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
-      const compressed = canvas.toDataURL('image/jpeg', 0.82);
+      const compressed = canvas.toDataURL('image/png');
 
       try {
         await updateDoc(doc(db, 'shops', currentUid), { logoUrl: compressed });
@@ -702,13 +713,23 @@ window.askResetQueue = function () {
   document.getElementById('modal-overlay').classList.add('show');
 };
 const origConfirmModal = window.confirmModal;
+let confirmingModal = false;
 window.confirmModal = async function () {
-  if (pendingAction && pendingAction.action === 'reset') {
-    await updateDoc(doc(db, 'shops', currentUid), { waiting: [], chairs: [], missed: [], nextTicket: 1 });
-    closeModal();
-    return;
+  if (confirmingModal || !pendingAction) return;
+  confirmingModal = true;
+  const btn = document.getElementById('modal-confirm-btn');
+  btn.disabled = true;
+  try {
+    if (pendingAction.action === 'reset') {
+      await updateDoc(doc(db, 'shops', currentUid), { waiting: [], chairs: [], missed: [], nextTicket: 1 });
+      closeModal();
+    } else {
+      await origConfirmModal();
+    }
+  } finally {
+    confirmingModal = false;
+    btn.disabled = false;
   }
-  await origConfirmModal();
 };
 
 applyAutoTheme();
