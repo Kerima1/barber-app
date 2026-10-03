@@ -659,12 +659,52 @@ window.copyShopLink = async function () {
   }
   setTimeout(() => { btn.textContent = t('Copier le lien','نسخ الرابط'); }, 2000);
 };
-window.downloadQr = function () {
+window.downloadQr = async function () {
   const canvas = document.querySelector('#qr-box canvas');
   const img = document.querySelector('#qr-box img');
-  const src = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
-  if (!src) return;
-  const a = document.createElement('a'); a.href = src; a.download = 'qr-' + shopData.slug + '.png'; a.click();
+  let src = null;
+  if (canvas) { src = canvas.toDataURL('image/png'); }
+  else if (img) { src = img.src; }
+  if (!src) {
+    alert(t('Le QR code n\u2019a pas pu être généré.', 'تعذر إنشاء رمز QR.'));
+    return;
+  }
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  if (isIOS) {
+    try {
+      const response = await fetch(src);
+      const blob = await response.blob();
+      const file = new File([blob], 'qr-' + (shopData.slug || 'shop') + '.png', { type: 'image/png' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: shopData.name || 'QR Code' });
+        return;
+      }
+      const newWindow = window.open();
+      if (newWindow) {
+        newWindow.document.write(
+          '<html><head><title>QR Code</title></head>' +
+          '<body style="margin:0;background:#fff;display:flex;align-items:center;justify-content:center;">' +
+          '<img src="' + src + '" style="max-width:90%;height:auto;">' +
+          '</body></html>'
+        );
+        newWindow.document.close();
+      }
+    } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      alert(t('Appuyez longuement sur le QR code, puis choisissez \u00ab Enregistrer l\u2019image \u00bb.', 'اضغط مطولاً على رمز QR ثم اختر \u00ab حفظ الصورة \u00bb.'));
+    }
+    return;
+  }
+
+  const a = document.createElement('a');
+  a.href = src;
+  a.download = 'qr-' + (shopData.slug || 'shop') + '.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 };
 
 // ---------- confirm modal ----------
