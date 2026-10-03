@@ -3,20 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Barber — File d'attente</title>
+<title>Barber — Espace propriétaire</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<!-- no static apple-touch-icon here on purpose — set dynamically below once
-     we know this shop's own logo, since iOS uses this specific tag (not
-     the manifest) for the image it saves to the home screen -->
-<!-- no static manifest link here on purpose — client.html creates its own
-     per-shop one in JS below, so the wrong start_url (the owner page's)
-     can never be the first thing a browser sees -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<!-- no static apple-mobile-web-app-title here on purpose, same reason as
-     the manifest/icon tags above — created fresh in JS once the real
-     shop name is known -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<meta name="apple-mobile-web-app-title" content="Barber">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;900&display=swap');
 
@@ -36,84 +30,94 @@
   body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px 16px 50px; transition: background .25s, color .25s; }
   body.ar { font-family: 'Tajawal', sans-serif; }
   button { cursor: pointer; font-family: inherit; }
+  .hidden { display: none !important; }
 
-  .topbar { max-width: 420px; margin: 0 auto 14px; display: flex; justify-content: flex-end; gap: 6px; }
+  .topbar { max-width: 420px; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 6px; }
   .pill-toggle { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 3px; gap: 3px; }
   .pill-toggle button { border: none; background: transparent; color: var(--dim); font-weight: 600; font-size: 11px; padding: 6px 11px; border-radius: 16px; }
   .pill-toggle button.active { background: var(--accent); color: #fff; }
   .theme-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center; }
 
-  .wrap { max-width: 420px; margin: 0 auto; text-align: center; }
+  .wrap { max-width: 420px; margin: 0 auto; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 20px; margin-bottom: 16px; }
+  .eyebrow { color: var(--dim); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--dim); margin: 10px 0 5px; }
+  input[type=text], input[type=email], input[type=password], input[type=number] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; padding: 12px 13px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text); font-size: 14px; font-family: inherit;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  .btn-primary { width: 100%; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: 14px; font-weight: 700; font-size: 15px; margin-top: 14px; }
+  .btn-ghost { width: 100%; padding: 13px; background: var(--surface-2); border: 1.5px solid var(--border); color: var(--text); border-radius: 12px; font-weight: 700; font-size: 13.5px; transition: transform .08s ease; }
+  .btn-ghost:active { transform: scale(0.98); background: var(--border); }
+  .btn-small { background: transparent; border: 1px solid var(--border); color: var(--dim); border-radius: 8px; padding: 6px 11px; font-size: 11px; font-weight: 700; }
+  .error { color: var(--danger); font-size: 13px; margin: 10px 0; display: none; text-align: left; }
+  .muted { color: var(--dim); font-size: 12px; }
 
-  .hero { margin-bottom: 24px; }
-  .hero-icon { width: 76px; height: 76px; border-radius: 22px; margin: 0 auto 12px; overflow: hidden; }
+  /* ---------- login screen ---------- */
+  .login-avatar { width: 78px; height: 78px; margin: 0 auto 16px; display: block; border-radius: 22px; box-shadow: 0 14px 30px rgba(124,92,255,.3); }
+  .login-head { text-align: center; margin-bottom: 22px; }
+  .login-head h1 { font-size: 24px; font-weight: 800; font-family: 'Space Grotesk', sans-serif; }
+  .login-head p { color: var(--dim); font-size: 13px; margin-top: 4px; }
+  .login-tabs { display: flex; gap: 6px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 4px; margin-bottom: 18px; }
+  .login-tabs button { flex: 1; border: none; background: transparent; font-weight: 700; font-size: 13px; color: var(--dim); padding: 9px; border-radius: 10px; }
+  .login-tabs button.active { background: var(--accent); color: #fff; }
+  .login-forgot { display: block; text-align: center; margin-top: 14px; font-size: 13px; color: var(--accent); font-weight: 700; cursor: pointer; }
+
+  /* ---------- dashboard ---------- */
+  .row { display: flex; justify-content: space-between; align-items: center; }
+  .hero-row { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .hero-icon { width: 46px; height: 46px; border-radius: 14px; overflow: hidden; flex-shrink: 0; }
   .hero-icon img { width: 100%; height: 100%; object-fit: cover; }
-  .hero-icon .letter { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--surface-2); border: 1.5px solid var(--accent); border-radius: inherit; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; color: var(--accent); }
-  .hero-eyebrow { font-size: 11px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; margin-bottom: 6px; }
-  .hero-name { font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700; }
-  .hero-phone { color: var(--dim); font-size: 13px; margin-top: 4px; }
+  .hero-name { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; }
 
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; margin-bottom: 16px; text-align: left; }
-  body.ar .card { text-align: right; }
-  .eyebrow-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 1.8s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(124,92,255,.45); } 50% { box-shadow: 0 0 0 6px rgba(124,92,255,0); } }
-  .eyebrow { color: var(--dim); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+  .view-toggle { max-width: 420px; margin: 0 auto 20px; display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 4px; gap: 4px; }
+  .view-toggle button { flex: 1; padding: 11px; border: none; border-radius: 10px; background: transparent; color: var(--dim); font-weight: 700; font-size: 13px; }
+  .view-toggle button.active { background: var(--accent); color: #fff; }
 
-  .plaque-row { display: flex; gap: 10px; flex-wrap: wrap; }
-  .plaque { flex: 1; min-width: 80px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 14px 10px; text-align: center; }
-  .plaque .num { font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; }
+  .chair { display: flex; flex-direction: column; gap: 10px; background: var(--surface-2); border: 1px solid var(--accent); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+  .chair .num { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; }
+  .chair-actions { display: flex; gap: 8px; }
+  .chair-actions button { flex: 1; border-radius: 9px; padding: 11px 6px; font-size: 12.5px; font-weight: 700; border: none; }
 
   .waiting-nums { display: flex; gap: 8px; flex-wrap: wrap; }
   .waiting-nums span { font-family: 'Space Grotesk', sans-serif; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; font-size: 18px; color: var(--dim); }
   .waiting-nums span.first { color: #fff; background: var(--accent); border-color: var(--accent); }
-  .waiting-count { font-size: 12px; color: var(--dim); margin-top: 10px; }
+  .btn-finish { background: var(--accent); color: #fff; }
+  .btn-absent { background: var(--surface); color: var(--dim); border: 1px solid var(--border) !important; }
+  .btn-cancel { background: transparent; color: var(--danger); border: 1px solid var(--danger) !important; }
 
-  .missed-chip { display: inline-flex; background: var(--surface-2); border: 1px solid var(--accent); border-radius: 10px; padding: 7px 11px; margin: 3px; animation: pulse-chip 1.8s ease-in-out infinite; }
+  .missed-chip { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border: 1px solid var(--accent); border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; animation: pulse-chip 1.8s ease-in-out infinite; }
   @keyframes pulse-chip { 0%,100% { box-shadow: 0 0 0 0 rgba(124,92,255,.35); } 50% { box-shadow: 0 0 0 5px rgba(124,92,255,0); } }
-  .missed-chip .num { font-family: 'Space Grotesk', sans-serif; font-size: 18px; color: var(--accent); font-weight: 700; }
+  .missed-chip .num { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; color: var(--accent); }
+  .missed-chip button { margin-left: auto; }
 
-  .take-btn { display: block; width: 100%; padding: 18px; background: var(--accent); color: #fff; border: none; border-radius: 16px; font-weight: 700; font-size: 15px; box-shadow: 0 10px 24px rgba(124,92,255,.35); }
-  .take-btn:disabled { opacity: .5; }
+  /* color pickers */
+  .color-select-wrap { position: relative; margin-top: 10px; }
+  .color-select { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+  .color-select-swatch { width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+  .color-select-label { font-size: 13px; font-weight: 600; font-family: 'Space Grotesk', monospace; flex: 1; }
+  .color-dropdown { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,.25); max-height: 220px; overflow-y: auto; }
+  .color-dropdown.open { display: block; }
+  .color-option { display: flex; align-items: center; gap: 10px; padding: 9px 14px; }
+  .color-option:hover { background: var(--surface-2); }
+  .color-option-swatch { width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+  .preset-swatch { width: 32px; height: 32px; border-radius: 50%; box-shadow: 0 0 0 1px var(--border); }
 
-  .ticket { display: none; text-align: center; margin-top: 16px; padding: 22px; border: 1px dashed var(--accent); border-radius: 16px; background: var(--surface); transition: all .3s; }
-  .ticket.show { display: block; }
-  .ticket.next-up { border: 2px solid var(--accent); background: var(--accent); animation: next-pulse 1.4s ease-in-out infinite; }
-  @keyframes next-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(124,92,255,.55); } 50% { box-shadow: 0 0 0 10px transparent; } }
-  .ticket .lbl { font-size: 11px; letter-spacing: 1.5px; color: var(--accent); text-transform: uppercase; margin-bottom: 6px; font-weight: 700; }
-  .ticket.next-up .lbl { color: #fff; }
-  .ticket .num { font-family: 'Space Grotesk', sans-serif; font-size: 52px; font-weight: 700; }
-  .ticket.next-up .num { color: #fff; }
-  .ticket .wait { margin-top: 8px; color: var(--dim); font-size: 13px; }
-  .ticket.next-up .wait { color: #fff; font-weight: 700; }
+  /* modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); align-items: center; justify-content: center; padding: 20px; z-index: 80; }
+  .modal-overlay.show { display: flex; }
+  .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 24px; max-width: 320px; width: 100%; text-align: center; }
+  .modal-card .num { font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+  .modal-card .msg { color: var(--dim); font-size: 13.5px; margin-bottom: 20px; }
+  .modal-actions { display: flex; gap: 10px; }
+  .modal-actions button { flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: 700; font-size: 13px; }
+  .modal-btn-ghost { background: var(--surface-2); color: var(--text); }
+  .modal-btn-confirm { background: var(--accent); color: #fff; }
+  .modal-btn-confirm.danger { background: var(--danger); }
 
-  .pdf-btn { display: block; width: 100%; margin-top: 12px; padding: 13px; background: transparent; border: 1px solid var(--border); color: var(--dim); border-radius: 12px; font-weight: 700; font-size: 12.5px; }
-
-  .ticket-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); align-items: center; justify-content: center; padding: 20px; z-index: 80; }
-  .ticket-modal-overlay.show { display: flex; }
-  .ticket-modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 20px; max-width: 320px; width: 100%; text-align: center; }
-  .ticket-modal-card img { width: 100%; border-radius: 10px; margin-bottom: 16px; -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; }
-  .ticket-modal-actions { display: flex; gap: 10px; }
-  .ticket-modal-actions button { flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: 700; font-size: 13px; }
-  .ticket-modal-close { background: var(--surface-2); color: var(--text); }
-  .ticket-modal-save { background: var(--accent); color: #fff; }
-
-  .ticket-template {
-    position: absolute; left: -9999px; top: 0; width: 320px; padding: 10px;
-    border-radius: 30px; font-family: 'Plus Jakarta Sans', sans-serif; text-align: center;
-    background: linear-gradient(135deg, var(--tt-light, #7C5CFF), var(--tt-dark, #9C7CFF));
-  }
-  .ticket-template .tt-inner { background: #FFFFFF; border-radius: 22px; padding: 30px 24px; }
-  .ticket-template .tt-shop { font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; letter-spacing: .5px; color: #1E1033; }
-  .ticket-template .tt-sub { font-size: 10.5px; color: #9A94AE; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
-  .ticket-template .tt-divider { height: 4px; width: 64px; margin: 18px auto; border-radius: 4px; background: linear-gradient(90deg, var(--tt-light, #7C5CFF), var(--tt-dark, #9C7CFF)); }
-  .ticket-template .tt-num-wrap { border-radius: 20px; padding: 18px 10px; margin-bottom: 18px; background: var(--tt-num-bg, #F3EEFB); }
-  .ticket-template .tt-num { font-family: 'Space Grotesk', sans-serif; font-size: 72px; font-weight: 800; line-height: 1; color: var(--tt-dark, #6C5CE7); }
-  .ticket-template .tt-time { margin-top: 2px; font-size: 12px; color: #76767F; }
-  .ticket-template .tt-phone { margin-top: 2px; font-size: 12px; color: #76767F; }
-  .ticket-template .tt-note { margin-top: 16px; font-size: 10.5px; color: #B0A8C4; line-height: 1.5; }
-
-  #not-found { display: none; text-align: center; padding: 70px 0; color: var(--dim); }
+  #loading { text-align: center; padding: 80px 0; color: var(--dim); }
 </style>
 </head>
 <body>
@@ -126,74 +130,167 @@
   <button class="theme-btn" id="theme-btn" onclick="toggleTheme()"></button>
 </div>
 
-<div class="wrap" id="app">
+<div id="loading">Chargement…</div>
 
-  <div class="hero">
-    <div class="hero-icon" id="hero-icon"><span class="letter">B</span></div>
-    <div class="hero-eyebrow" data-fr="Salon de coiffure" data-ar="صالون الحلاقة">Salon de coiffure</div>
-    <div class="hero-name" id="shop-name">—</div>
-    <div class="hero-phone copyable" id="shop-phone"></div>
+<!-- AUTH -->
+<div id="auth-view" class="hidden wrap">
+  <img src="icon.svg" alt="Barber" class="login-avatar">
+  <div class="login-head">
+    <h1 id="auth-title">Connexion</h1>
+    <p id="auth-sub">Gère la file d'attente de ton salon</p>
   </div>
-
   <div class="card">
-    <div class="eyebrow-row"><div class="live-dot"></div><div class="eyebrow" data-fr="En direct — En cours" data-ar="مباشر — قيد الخدمة">En direct — En cours</div></div>
-    <div class="plaque-row" id="serving-row"></div>
-  </div>
+    <div class="login-tabs">
+      <button id="tab-login-btn" class="active" onclick="setMode('login')" data-fr="Connexion" data-ar="تسجيل الدخول">Connexion</button>
+      <button id="tab-signup-btn" onclick="setMode('signup')" data-fr="Créer un compte" data-ar="إنشاء حساب">Créer un compte</button>
+    </div>
 
-  <div class="card" id="missed-card" style="display:none;">
-    <div class="eyebrow-row"><div class="eyebrow" data-fr="Appelé(e) — merci de vous présenter" data-ar="تم النداء — يرجى التقدم">Appelé(e) — merci de vous présenter</div></div>
-    <div id="missed-row"></div>
-  </div>
+    <div id="signup-fields" class="hidden">
+      <label data-fr="Nom du salon" data-ar="اسم الصالون">Nom du salon</label>
+      <input type="text" id="f-name" placeholder="Nom du salon" data-fr-placeholder="Nom du salon" data-ar-placeholder="اسم الصالون">
+      <label data-fr="Téléphone" data-ar="الهاتف">Téléphone</label>
+      <input type="text" id="f-phone" placeholder="+222 XX XX XX XX">
+      <label data-fr="E-mail" data-ar="البريد الإلكتروني">E-mail</label>
+    </div>
+    <div id="login-email-label"><label data-fr="E-mail" data-ar="البريد الإلكتروني">E-mail</label></div>
+    <input type="email" id="f-email" placeholder="vous@exemple.com">
 
-  <div class="card">
-    <div class="eyebrow-row"><div class="eyebrow" data-fr="Prochains numéros" data-ar="التالي في الدور">Prochains numéros</div></div>
-    <div class="waiting-nums" id="waiting-row"></div>
-    <div class="waiting-count" id="waiting-count"></div>
-  </div>
+    <label data-fr="Code PIN" data-ar="رمز PIN">Code PIN</label>
+    <input type="password" id="f-pin" placeholder="••••" maxlength="6">
 
-  <button class="take-btn" id="take-btn" onclick="takeNumber()" data-fr="Prendre mon numéro" data-ar="خذ رقمك">Prendre mon numéro</button>
+    <div id="confirm-wrap" class="hidden">
+      <label data-fr="Confirmer le code PIN" data-ar="تأكيد رمز PIN">Confirmer le code PIN</label>
+      <input type="password" id="f-pin2" placeholder="••••" maxlength="6">
+    </div>
 
-  <div class="ticket" id="ticket">
-    <div class="lbl" id="ticket-lbl" data-fr="Votre numéro" data-ar="رقمك">Votre numéro</div>
-    <div class="num" id="ticket-num">—</div>
-    <div class="wait" id="ticket-wait" data-fr="Attente estimée : 20 min" data-ar="الانتظار المتوقع: 20 دقيقة">Attente estimée : 20 min</div>
-  </div>
-  <button class="pdf-btn" id="pdf-btn" style="display:none;" onclick="generateTicketImage()" data-fr="Voir / enregistrer mon ticket" data-ar="عرض / حفظ تذكرتي">Voir / enregistrer mon ticket</button>
-
-</div>
-
-<div id="not-found">
-  <p>Ce salon n'a pas été trouvé.</p>
-  <p style="opacity:.7; font-size:13px; margin-top:6px;">Vérifiez le lien ou le QR code que vous avez scanné.</p>
-</div>
-
-<div id="load-error" style="display:none; text-align:center; padding:70px 0; color:var(--dim);">
-  <p>Impossible de charger les informations du salon.</p>
-  <p style="opacity:.7; font-size:13px; margin-top:6px;">Vérifiez votre connexion internet.</p>
-  <button class="take-btn" style="width:auto; padding:12px 24px; margin-top:16px; display:inline-block;" onclick="retryInit()">Réessayer</button>
-</div>
-
-<!-- off-screen ticket template for image export -->
-<div class="ticket-template" id="ticket-template">
-  <div class="tt-inner">
-    <img id="tt-logo" src="" alt="" style="display:none; width:56px; height:56px; border-radius:16px; object-fit:cover; margin:0 auto 10px;">
-    <div class="tt-shop" id="tt-shop">BARBER</div>
-    <div class="tt-sub" id="tt-sub">Ticket de passage</div>
-    <div class="tt-divider"></div>
-    <div class="tt-num-wrap"><div class="tt-num" id="tt-num">8</div></div>
-    <div class="tt-time" id="tt-time">—</div>
-    <div class="tt-phone" id="tt-phone">—</div>
-    <div class="tt-note" id="tt-note">Conservez ce ticket comme preuve de votre numéro</div>
+    <div class="error" id="auth-error"></div>
+    <button class="btn-primary" id="auth-submit" onclick="submitAuth()" data-fr="Entrer" data-ar="دخول">Entrer</button>
+    <a class="login-forgot" id="forgot-link" onclick="forgotPassword()" data-fr="Mot de passe oublié ?" data-ar="نسيت رمز PIN؟">Mot de passe oublié ?</a>
   </div>
 </div>
 
-<div class="ticket-modal-overlay" id="ticket-modal-overlay" onclick="if (event.target === this) closeTicketModal()">
-  <div class="ticket-modal-card">
-    <img id="ticket-image-preview" src="" alt="ticket">
-    <div style="font-size:11px; color:var(--dim); margin-bottom:12px;" data-fr="Astuce : un appui long sur l'image l'enregistre aussi directement" data-ar="نصيحة: الضغط مطولاً على الصورة يحفظها مباشرة أيضًا">Astuce : un appui long sur l'image l'enregistre aussi directement</div>
-    <div class="ticket-modal-actions">
-      <button class="ticket-modal-close" onclick="closeTicketModal()" data-fr="Fermer" data-ar="إغلاق">Fermer</button>
-      <button class="ticket-modal-save" onclick="saveTicketImage()" data-fr="Enregistrer" data-ar="حفظ">Enregistrer</button>
+<!-- DASHBOARD -->
+<div id="dash-view" class="hidden wrap">
+  <div class="hero-row">
+    <div class="hero-icon" id="hero-icon"></div>
+    <div class="hero-name" id="hero-name">—</div>
+  </div>
+
+  <div class="view-toggle">
+    <button class="active" onclick="setTab('panel')" id="tab-panel-btn" data-fr="Panneau" data-ar="اللوحة">Panneau</button>
+    <button onclick="setTab('settings')" id="tab-settings-btn" data-fr="Réglages" data-ar="الإعدادات">Réglages</button>
+  </div>
+
+  <div id="tab-panel">
+    <div class="card">
+      <div class="eyebrow" data-fr="Postes en cours" data-ar="المقاعد النشطة">Postes en cours</div>
+      <div id="chairs-box"></div>
+      <button class="btn-ghost" onclick="addChair()" data-fr="+ Ajouter un poste" data-ar="+ إضافة مقعد">+ Ajouter un poste</button>
+    </div>
+    <div class="card hidden" id="missed-card">
+      <div class="eyebrow" data-fr="Ne s'est pas présenté" data-ar="لم يحضر">Ne s'est pas présenté</div>
+      <div id="missed-box"></div>
+    </div>
+    <div class="card">
+      <div class="row"><div class="eyebrow" style="margin-bottom:0;" data-fr="En attente" data-ar="بالانتظار">En attente</div></div>
+      <div class="waiting-nums" id="waiting-box"></div>
+      <div class="muted" id="waiting-count" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <div id="tab-settings" class="hidden">
+    <div class="card">
+      <div class="eyebrow" data-fr="Infos du salon" data-ar="معلومات الصالون">Infos du salon</div>
+      <div class="row" style="gap:14px; align-items:center;">
+        <div class="hero-icon" id="settings-icon" style="width:60px; height:60px;"></div>
+        <div>
+          <div class="muted" style="margin-bottom:6px;" data-fr="Icône du salon" data-ar="أيقونة الصالون">Icône du salon</div>
+          <label class="btn-small" style="display:inline-block; cursor:pointer;">
+            <span data-fr="Choisir une image" data-ar="اختر صورة">Choisir une image</span>
+            <input type="file" accept="image/*" id="icon-input" onchange="handleIconUpload(event)" class="hidden">
+          </label>
+        </div>
+      </div>
+      <div id="shop-info-view" style="margin-top:14px;">
+        <div class="row">
+          <div>
+            <div class="muted" data-fr="Nom" data-ar="الاسم">Nom</div>
+            <div id="shop-name-text" style="font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:700;">—</div>
+          </div>
+          <div>
+            <div class="muted" data-fr="Téléphone" data-ar="الهاتف">Téléphone</div>
+            <div id="shop-phone-text" style="font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:700;">—</div>
+          </div>
+        </div>
+        <button class="btn-small" style="margin-top:12px;" onclick="editShopInfo()" data-fr="Modifier" data-ar="تعديل">Modifier</button>
+      </div>
+      <div id="shop-info-edit" class="hidden" style="margin-top:14px;">
+        <label data-fr="Nom" data-ar="الاسم">Nom</label>
+        <input type="text" id="s-name">
+        <label data-fr="Téléphone" data-ar="الهاتف">Téléphone</label>
+        <input type="text" id="s-phone">
+        <div style="display:flex; gap:8px; margin-top:14px;">
+          <button class="btn-primary" style="margin-top:0; flex:1;" onclick="saveSettings()" data-fr="OK" data-ar="موافق">OK</button>
+          <button class="btn-small" style="flex:1;" onclick="cancelEditShopInfo()" data-fr="Annuler" data-ar="إلغاء">Annuler</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow" data-fr="File du jour" data-ar="طابور اليوم">File du jour</div>
+      <div class="row">
+        <div id="capacity-text" style="font-family:'Space Grotesk',sans-serif; font-size:20px; font-weight:700;">0 / 50</div>
+        <button class="btn-small" onclick="editCapacity()" data-fr="Modifier" data-ar="تعديل">Modifier</button>
+      </div>
+      <div id="capacity-edit" class="hidden" style="display:none; gap:8px; margin-top:10px;">
+        <input type="number" id="capacity-input" min="1" style="width:100px; display:inline-block;">
+        <button class="btn-small" onclick="confirmCapacity()">OK</button>
+      </div>
+      <button class="btn-ghost" style="margin-top:12px;" onclick="askResetQueue()" data-fr="Réinitialiser (nouvelle journée)" data-ar="إعادة ضبط (يوم جديد)">Réinitialiser (nouvelle journée)</button>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow" data-fr="Couleur du salon" data-ar="لون الصالون">Couleur du salon</div>
+      <label data-fr="Mode clair" data-ar="الوضع الفاتح">Mode clair</label>
+      <div class="color-select-wrap">
+        <div class="color-select" onclick="toggleColorDropdown('light')">
+          <span class="color-select-swatch" id="light-select-swatch"></span>
+          <span class="color-select-label" id="light-select-label">#7C5CFF</span>
+        </div>
+        <div class="color-dropdown" id="light-color-dropdown"></div>
+      </div>
+      <label data-fr="Mode sombre" data-ar="الوضع الداكن">Mode sombre</label>
+      <div class="color-select-wrap">
+        <div class="color-select" onclick="toggleColorDropdown('dark')">
+          <span class="color-select-swatch" id="dark-select-swatch"></span>
+          <span class="color-select-label" id="dark-select-label">#9C7CFF</span>
+        </div>
+        <div class="color-dropdown" id="dark-color-dropdown"></div>
+      </div>
+      <div class="eyebrow" style="margin-top:16px;" data-fr="Palettes suggérées" data-ar="تركيبات مقترحة">Palettes suggérées</div>
+      <div id="preset-row" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <div class="eyebrow" data-fr="Lien et QR code" data-ar="الرابط ورمز QR">Lien et QR code</div>
+      <div id="qr-box" style="display:inline-block; padding:14px; background:#fff; border-radius:14px; margin:10px 0;"></div>
+      <div id="shop-link" class="copyable muted" style="word-break:break-all; margin-bottom:10px;"></div>
+      <button class="btn-ghost" onclick="copyShopLink()" id="copy-link-btn" data-fr="Copier le lien" data-ar="نسخ الرابط">Copier le lien</button>
+      <button class="btn-ghost" style="margin-top:8px;" onclick="downloadQr()" data-fr="Télécharger le QR code" data-ar="تحميل رمز QR">Télécharger le QR code</button>
+    </div>
+
+    <button class="btn-ghost" style="color:var(--danger); border-color:var(--danger);" onclick="doSignOut()" data-fr="Se déconnecter" data-ar="تسجيل الخروج">Se déconnecter</button>
+  </div>
+</div>
+
+<!-- confirm modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-card">
+    <div class="num" id="modal-num">#4</div>
+    <div class="msg" id="modal-msg"></div>
+    <div class="modal-actions">
+      <button class="modal-btn-ghost" onclick="closeModal()" data-fr="Annuler" data-ar="إلغاء">Annuler</button>
+      <button class="modal-btn-confirm" id="modal-confirm-btn" onclick="confirmModal()" data-fr="Confirmer" data-ar="تأكيد">Confirmer</button>
     </div>
   </div>
 </div>
@@ -201,8 +298,15 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, onSnapshot, runTransaction, enableIndexedDbPersistence
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, signOut, sendPasswordResetEmail
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, runTransaction, enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {
+  getStorage, ref, uploadBytes, getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA9JdUkigDQaxiAqfMX1k0D32iEOqSL5xs",
@@ -213,7 +317,9 @@ const firebaseConfig = {
   appId: "1:638654190129:web:2bc706db7090fa8087bb10"
 };
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 enableIndexedDbPersistence(db).catch(() => {});
 
 let currentLang = 'fr';
@@ -223,9 +329,10 @@ function t(fr, ar) { return currentLang === 'ar' ? ar : fr; }
 const MOON_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>';
 const SUN_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
 function setThemeIcon(theme) { document.getElementById('theme-btn').innerHTML = theme === 'dark' ? MOON_ICON : SUN_ICON; }
+let accentLight = '#7C5CFF', accentDark = '#9C7CFF';
 function applyAccentForCurrentTheme() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  document.documentElement.style.setProperty('--accent', isDark ? (shopData?.accentDark || '#9C7CFF') : (shopData?.accentLight || '#7C5CFF'));
+  document.documentElement.style.setProperty('--accent', isDark ? accentDark : accentLight);
 }
 window.toggleTheme = function () {
   const html = document.documentElement;
@@ -233,9 +340,11 @@ window.toggleTheme = function () {
   html.setAttribute('data-theme', next);
   setThemeIcon(next);
   applyAccentForCurrentTheme();
-  localStorage.setItem('barberTheme', next);
+  localStorage.setItem('barberTheme', next); // remember the manual choice for next visit
 };
 function applyAutoTheme() {
+  // a manual choice made earlier always wins; only guess by time of day
+  // if the person has never picked one themselves
   const saved = localStorage.getItem('barberTheme');
   const theme = saved || ((new Date().getHours() >= 19 || new Date().getHours() < 6) ? 'dark' : 'light');
   document.documentElement.setAttribute('data-theme', theme);
@@ -249,259 +358,396 @@ window.setLang = function (lang) {
   document.getElementById('lang-fr').classList.toggle('active', lang === 'fr');
   document.getElementById('lang-ar').classList.toggle('active', lang === 'ar');
   document.querySelectorAll('[data-fr]').forEach(el => { el.textContent = lang === 'ar' ? el.getAttribute('data-ar') : el.getAttribute('data-fr'); });
-  if (shopData) render();
+  document.querySelectorAll('[data-fr-placeholder]').forEach(el => { el.placeholder = lang === 'ar' ? el.getAttribute('data-ar-placeholder') : el.getAttribute('data-fr-placeholder'); });
+  if (shopData) renderDashboard();
+  if (!currentUid) renderAuthMode(); // title/subtitle depend on login-vs-signup mode, not covered by the generic sweep above
   localStorage.setItem('barberLang', lang);
 };
 
-const slug = new URLSearchParams(location.search).get('shop');
-let uid = null, shopData = null;
-const storageKey = 'myTicket_' + slug;
-let myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
-
-// per-shop manifest so "Add to Home Screen" reopens this exact shop,
-// using THAT SHOP's own logo and name as the saved icon — not the generic one.
-// There is no static <link rel="manifest"> in this page's HTML on purpose —
-// we create it fresh here, so the only manifest that ever exists already
-// has this shop's correct start_url baked in from the very first moment.
-let manifestLinkEl = null;
-let appleTouchIconEl = null;
-let appleTitleEl = null;
-let manifestNamed = false;
-function setPerShopManifest(name, logoUrl) {
-  if (!slug) return;
-  // A real same-origin URL (handled by the service worker), not a blob: URL —
-  // Chrome's install/installability system requires this to offer installing
-  // at all, which is why the install icon never showed up for a shop page.
-  // The shop logo can't travel through a URL this way (base64 images are far
-  // too long), so Android/desktop installs use the generic icon for now;
-  // iOS gets the real logo through its own separate apple-touch-icon tag.
-  const manifestUrl = 'manifest.json?shop=' + encodeURIComponent(slug) + '&name=' + encodeURIComponent(name || 'Barber');
-  if (!manifestLinkEl) {
-    manifestLinkEl = document.createElement('link');
-    manifestLinkEl.rel = 'manifest';
-    document.head.appendChild(manifestLinkEl);
-  }
-  manifestLinkEl.href = manifestUrl;
-
-  if (!appleTitleEl) {
-    appleTitleEl = document.createElement('meta');
-    appleTitleEl.name = 'apple-mobile-web-app-title';
-    document.head.appendChild(appleTitleEl);
-  }
-  appleTitleEl.content = name || 'Barber';
-  if (name) document.title = name;
-
-  // iOS specifically — the actual image it saves to the home screen
-  if (!appleTouchIconEl) {
-    appleTouchIconEl = document.createElement('link');
-    appleTouchIconEl.rel = 'apple-touch-icon';
-    document.head.appendChild(appleTouchIconEl);
-  }
-  appleTouchIconEl.href = logoUrl || 'apple-touch-icon.png';
+function slugify(name) {
+  return name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'salon';
 }
-setPerShopManifest(null, null);
 
-async function init() {
-  if (!slug) { showNotFound(); return; }
-  document.getElementById('load-error').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
+// ---------- auth ----------
+let mode = 'login';
+let currentUid = null, unsubShop = null, shopData = null;
+
+function renderAuthMode() {
+  document.getElementById('auth-error').style.display = 'none';
+  document.getElementById('tab-login-btn').classList.toggle('active', mode === 'login');
+  document.getElementById('tab-signup-btn').classList.toggle('active', mode === 'signup');
+  if (mode === 'signup') {
+    document.getElementById('auth-title').textContent = t('Créer un compte', 'إنشاء حساب');
+    document.getElementById('auth-sub').textContent = t("Configure ton salon et choisis un code PIN.", 'أعدّ صالونك واختر رمز PIN.');
+    document.getElementById('signup-fields').classList.remove('hidden');
+    document.getElementById('login-email-label').classList.add('hidden');
+    document.getElementById('confirm-wrap').classList.remove('hidden');
+    document.getElementById('forgot-link').style.display = 'none';
+  } else {
+    document.getElementById('auth-title').textContent = t('Connexion', 'تسجيل الدخول');
+    document.getElementById('auth-sub').textContent = t("Gère la file d'attente de ton salon", 'أدر طابور صالونك');
+    document.getElementById('signup-fields').classList.add('hidden');
+    document.getElementById('login-email-label').classList.remove('hidden');
+    document.getElementById('confirm-wrap').classList.add('hidden');
+    document.getElementById('forgot-link').style.display = 'block';
+  }
+}
+window.setMode = function (m) { mode = m; renderAuthMode(); };
+
+window.submitAuth = async function () {
+  const email = document.getElementById('f-email').value.trim();
+  const pin = document.getElementById('f-pin').value.trim();
+  const errEl = document.getElementById('auth-error');
+  errEl.style.display = 'none';
   try {
-    const slugSnap = await getDoc(doc(db, 'slugs', slug));
-    if (!slugSnap.exists()) { showNotFound(); return; }
-    uid = slugSnap.data().uid;
-    onSnapshot(doc(db, 'shops', uid), (snap) => {
-      if (!snap.exists()) { showNotFound(); return; }
-      const prevLogo = shopData?.logoUrl;
-      shopData = snap.data();
-      applyAccentForCurrentTheme();
-      if (!manifestNamed || shopData.logoUrl !== prevLogo) {
-        manifestNamed = true;
-        try { setPerShopManifest(shopData.name, shopData.logoUrl); }
-        catch (e) { /* install-icon metadata failing should never block the actual page */ }
-      }
-      render();
-    }, () => showLoadError()); // onSnapshot's own error callback — fires if the live connection drops
+    if (mode === 'signup') {
+      const name = document.getElementById('f-name').value.trim();
+      const phone = document.getElementById('f-phone').value.trim();
+      const pin2 = document.getElementById('f-pin2').value.trim();
+      if (!name || !email || !pin) throw new Error(t('Remplis le nom, l\u2019e-mail et un code PIN.', 'يرجى ملء الاسم والبريد الإلكتروني ورمز PIN.'));
+      if (pin !== pin2) throw new Error(t('Les deux codes PIN ne correspondent pas.', 'رمزا PIN غير متطابقين.'));
+      if (pin.length < 6) throw new Error(t('Le code PIN doit faire au moins 6 caractères.', 'يجب أن يتكون رمز PIN من 6 أحرف على الأقل.'));
+      const cred = await createUserWithEmailAndPassword(auth, email, pin);
+      const uid = cred.user.uid;
+      const slug = slugify(name);
+      await setDoc(doc(db, 'slugs', slug), { uid });
+      await setDoc(doc(db, 'shops', uid), {
+        name, phone, email, slug, logoUrl: '',
+        accentLight: '#7C5CFF', accentDark: '#9C7CFF',
+        capacity: 50, nextTicket: 1, waiting: [], chairs: [], missed: [],
+        createdAt: Date.now()
+      });
+    } else {
+      if (!email || !pin) throw new Error(t('Entre ton e-mail et ton code PIN.', 'أدخل بريدك الإلكتروني ورمز PIN.'));
+      await signInWithEmailAndPassword(auth, email, pin);
+    }
   } catch (e) {
-    showLoadError();
+    errEl.style.color = 'var(--danger)';
+    errEl.textContent = friendlyError(e);
+    errEl.style.display = 'block';
   }
+};
+
+function friendlyError(e) {
+  const code = e.code || '';
+  if (code.includes('wrong-password') || code.includes('invalid-credential')) return t('Code PIN incorrect.', 'رمز PIN غير صحيح.');
+  if (code.includes('user-not-found')) return t('Aucun compte avec cet e-mail.', 'لا يوجد حساب بهذا البريد.');
+  if (code.includes('email-already-in-use')) return t('Un compte existe déjà avec cet e-mail.', 'يوجد حساب بالفعل بهذا البريد.');
+  return e.message || t('Une erreur est survenue.', 'حدث خطأ ما.');
 }
 
-function showLoadError() {
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('not-found').style.display = 'none';
-  document.getElementById('load-error').style.display = 'block';
+window.forgotPassword = async function () {
+  const email = document.getElementById('f-email').value.trim();
+  const errEl = document.getElementById('auth-error');
+  if (!email) { errEl.textContent = t('Entre d\u2019abord ton e-mail.', 'أدخل بريدك الإلكتروني أولاً.'); errEl.style.display = 'block'; return; }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    errEl.style.color = '#2e7d32';
+    errEl.textContent = t('E-mail envoyé.', 'تم إرسال البريد الإلكتروني.');
+    errEl.style.display = 'block';
+  } catch (e) {
+    errEl.style.color = 'var(--danger)';
+    errEl.textContent = friendlyError(e);
+    errEl.style.display = 'block';
+  }
+};
+
+window.doSignOut = () => signOut(auth);
+
+onAuthStateChanged(auth, (user) => {
+  document.getElementById('loading').classList.add('hidden');
+  if (user) {
+    currentUid = user.uid;
+    document.getElementById('auth-view').classList.add('hidden');
+    document.getElementById('dash-view').classList.remove('hidden');
+    watchShop(user.uid);
+  } else {
+    currentUid = null;
+    if (unsubShop) { unsubShop(); unsubShop = null; }
+    document.getElementById('dash-view').classList.add('hidden');
+    document.getElementById('auth-view').classList.remove('hidden');
+    mode = 'login';
+    renderAuthMode();
+  }
+});
+
+// ---------- dashboard ----------
+window.setTab = function (tabName) {
+  document.getElementById('tab-panel').classList.toggle('hidden', tabName !== 'panel');
+  document.getElementById('tab-settings').classList.toggle('hidden', tabName !== 'settings');
+  document.getElementById('tab-panel-btn').classList.toggle('active', tabName === 'panel');
+  document.getElementById('tab-settings-btn').classList.toggle('active', tabName === 'settings');
+};
+
+function watchShop(uid) {
+  unsubShop = onSnapshot(doc(db, 'shops', uid), (snap) => {
+    if (!snap.exists()) return;
+    shopData = snap.data();
+    accentLight = shopData.accentLight || '#7C5CFF';
+    accentDark = shopData.accentDark || '#9C7CFF';
+    applyAccentForCurrentTheme();
+    renderDashboard();
+  });
 }
-window.retryInit = function () { init(); };
 
-function showNotFound() {
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('not-found').style.display = 'block';
+function iconHtml(url, name) {
+  if (url) return `<img src="${url}" alt="icon">`;
+  const letter = (name || '?').trim()[0]?.toUpperCase() || '?';
+  return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border:1px solid var(--accent);border-radius:inherit;font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--accent);">${letter}</div>`;
 }
 
-function render() {
-  document.getElementById('shop-name').textContent = shopData.name;
-  document.getElementById('shop-phone').textContent = shopData.phone || '';
-  document.getElementById('hero-icon').innerHTML = shopData.logoUrl
-    ? `<img src="${shopData.logoUrl}" alt="logo">`
-    : `<span class="letter">${(shopData.name || '?').trim()[0]?.toUpperCase() || '?'}</span>`;
+function renderDashboard() {
+  document.getElementById('hero-name').textContent = shopData.name;
+  document.getElementById('hero-icon').innerHTML = iconHtml(shopData.logoUrl, shopData.name);
+  document.getElementById('settings-icon').innerHTML = iconHtml(shopData.logoUrl, shopData.name);
 
-  const chairs = shopData.chairs || [];
-  document.getElementById('serving-row').innerHTML = chairs.map(n => `<div class="plaque"><div class="num">${n}</div></div>`).join('')
-    || `<span style="opacity:.4;">${t('Aucun poste actif','لا يوجد مقعد نشط')}</span>`;
+  document.getElementById('chairs-box').innerHTML = (shopData.chairs || []).map((num, i) => `
+    <div class="chair">
+      <div class="num">${num}</div>
+      <div class="chair-actions">
+        <button class="btn-cancel" onclick="askConfirm('cancel', ${i})">${t('Annuler','إلغاء')}</button>
+        <button class="btn-absent" onclick="askConfirm('absent', ${i})">${t('Absent','غائب')}</button>
+        <button class="btn-finish" onclick="askConfirm('finish', ${i})">${t('Terminé','انتهى')}</button>
+      </div>
+    </div>`).join('') || `<div class="muted">${t('Aucun poste actif','لا يوجد مقعد نشط')}</div>`;
 
   const missed = shopData.missed || [];
-  document.getElementById('missed-card').style.display = missed.length ? 'block' : 'none';
-  document.getElementById('missed-row').innerHTML = missed.map(n => `<div class="missed-chip"><div class="num">${n}</div></div>`).join('');
+  document.getElementById('missed-card').classList.toggle('hidden', missed.length === 0);
+  document.getElementById('missed-box').innerHTML = missed.map(n => `
+    <div class="missed-chip"><div class="num">#${n}</div><button class="btn-small" onclick="askConfirm('recall', ${n})">${t('Rappeler','استدعاء')}</button></div>`).join('');
 
   const waiting = shopData.waiting || [];
-  const shown = waiting.slice(0, 6);
-  const extra = waiting.length - shown.length;
-  document.getElementById('waiting-row').innerHTML =
-    shown.map((n, i) => `<span class="${i === 0 ? 'first' : ''}">${n}</span>`).join('')
-    + (extra > 0 ? `<span>+${extra}</span>` : '')
-    || `<span style="opacity:.4;">${t('Aucun','لا يوجد')}</span>`;
+  document.getElementById('waiting-box').innerHTML = waiting.map((n, i) => `<span class="${i === 0 ? 'first' : ''}">${n}</span>`).join('')
+    || `<span style="opacity:.5;">${t('Aucun','لا يوجد')}</span>`;
   document.getElementById('waiting-count').textContent = waiting.length > 0 ? waiting.length + ' ' + t('en attente au total','بالانتظار إجمالاً') : '';
 
-  const full = shopData.nextTicket > (shopData.capacity || 50);
-  const takeBtn = document.getElementById('take-btn');
-  if (myTicket === null) {
-    takeBtn.style.display = 'block';
-    takeBtn.disabled = full;
-    takeBtn.textContent = full ? t('File complète pour aujourd\u2019hui','الطابور ممتلئ لهذا اليوم') : t('Prendre mon numéro','خذ رقمك');
-  } else {
-    takeBtn.style.display = 'none';
-  }
+  document.getElementById('shop-name-text').textContent = shopData.name || '—';
+  document.getElementById('shop-phone-text').textContent = shopData.phone || '—';
+  document.getElementById('capacity-text').textContent = (shopData.nextTicket - 1) + ' / ' + (shopData.capacity || 50);
 
-  renderMyTicket(chairs, waiting, missed);
+  document.getElementById('light-select-swatch').style.background = accentLight;
+  document.getElementById('light-select-label').textContent = accentLight.toUpperCase();
+  document.getElementById('dark-select-swatch').style.background = accentDark;
+  document.getElementById('dark-select-label').textContent = accentDark.toUpperCase();
+
+  const link = location.origin + location.pathname.replace('index.html', '') + 'client.html?shop=' + shopData.slug;
+  document.getElementById('shop-link').textContent = link;
+  const qrBox = document.getElementById('qr-box');
+  qrBox.innerHTML = '';
+  if (typeof QRCode !== 'undefined') new QRCode(qrBox, { text: link, width: 160, height: 160, colorDark: '#1E1033', colorLight: '#ffffff' });
 }
 
-function renderMyTicket(chairs, waiting, missed) {
-  const ticketEl = document.getElementById('ticket');
-  const waitEl = document.getElementById('ticket-wait');
-  const pdfBtn = document.getElementById('pdf-btn');
-  if (myTicket === null) { ticketEl.classList.remove('show'); pdfBtn.style.display = 'none'; return; }
-
-  const stillTracked = chairs.includes(myTicket) || waiting.includes(myTicket) || missed.includes(myTicket);
-  if (!stillTracked) {
-    myTicket = null;
-    localStorage.removeItem(storageKey);
-    ticketEl.classList.remove('show', 'next-up');
-    pdfBtn.style.display = 'none';
-    document.getElementById('take-btn').style.display = 'block';
-    return;
-  }
-
-  ticketEl.classList.add('show');
-  pdfBtn.style.display = 'block';
-  document.getElementById('ticket-num').textContent = '#' + myTicket;
-
-  if (missed.includes(myTicket)) {
-    ticketEl.classList.add('next-up');
-    waitEl.textContent = t('On vous a appelé — merci de vous présenter', 'تم مناداتك — يرجى التقدم الآن');
-  } else if (chairs.includes(myTicket)) {
-    ticketEl.classList.remove('next-up');
-    waitEl.textContent = t("C'est votre tour — dirigez-vous vers le poste", 'لقد حان دورك — توجه إلى المقعد');
-  } else if (waiting[0] === myTicket) {
-    ticketEl.classList.add('next-up');
-    waitEl.textContent = t('Vous êtes le prochain !', 'أنت التالي!');
-  } else {
-    ticketEl.classList.remove('next-up');
-    waitEl.textContent = t('Attente estimée : 20 min', 'الانتظار المتوقع: 20 دقيقة');
-  }
-}
-
-let takingNumber = false;
-window.takeNumber = async function () {
-  if (!uid || takingNumber) return; // a tap already in flight — ignore repeat taps until it resolves
-  takingNumber = true;
-  const takeBtn = document.getElementById('take-btn');
-  takeBtn.disabled = true;
+let addingChair = false;
+window.addChair = async function () {
+  if (addingChair) return;
+  addingChair = true;
   try {
-    const ref = doc(db, 'shops', uid);
-    const newTicket = await runTransaction(db, async (tx) => {
+    const ref = doc(db, 'shops', currentUid);
+    await runTransaction(db, async (tx) => {
       const d = (await tx.get(ref)).data();
-      const n = d.nextTicket;
-      const waiting = [...(d.waiting || []), n];
-      tx.update(ref, { nextTicket: n + 1, waiting });
-      return n;
+      const waiting = [...(d.waiting || [])], chairs = [...(d.chairs || [])];
+      if (waiting.length > 0) chairs.push(waiting.shift());
+      tx.update(ref, { waiting, chairs });
     });
-    myTicket = newTicket;
-    localStorage.setItem(storageKey, String(newTicket));
   } finally {
-    takingNumber = false;
+    addingChair = false;
   }
 };
 
-// ---------- ticket image ----------
-let lastTicketImageUrl = null;
-function hexToRgba(hex, alpha) {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.substring(0, 2), 16);
-  const g = parseInt(h.substring(2, 4), 16);
-  const b = parseInt(h.substring(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+window.handleIconUpload = function (event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = async () => {
+      // Phone photos can be several MB — Firestore documents max out at 1MB
+      // total, so the original upload was silently failing on real photos.
+      // Resize to a small square before storing, which also keeps the
+      // document light and fast to load everywhere it's used.
+      const size = 300;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const scale = Math.max(size / img.width, size / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
 
-window.generateTicketImage = function () {
-  if (myTicket === null) return;
-  if (typeof window.html2canvas === 'undefined') {
-    alert(t('Le générateur d\u2019image n\u2019a pas pu se charger — vérifiez votre connexion et réessayez.', 'تعذر تحميل أداة إنشاء الصورة — تحقق من اتصالك وحاول مرة أخرى.'));
-    return;
-  }
-  const light = shopData.accentLight || '#7C5CFF';
-  const dark = shopData.accentDark || '#9C7CFF';
-  const template = document.getElementById('ticket-template');
-  template.style.setProperty('--tt-light', light);
-  template.style.setProperty('--tt-dark', dark);
-  template.style.setProperty('--tt-num-bg', hexToRgba(light, 0.12));
+      canvas.toBlob(async (blob) => {
+        try {
+          const storageRef = ref(storage, 'logos/' + currentUid);
+          await uploadBytes(storageRef, blob, { contentType: 'image/png' });
+          const url = await getDownloadURL(storageRef);
+          // a real, short, stable URL now — works as an icon everywhere,
+          // unlike the old inline base64 approach
+          await updateDoc(doc(db, 'shops', currentUid), { logoUrl: url });
+        } catch (err) {
+          alert(t('L\u2019image n\u2019a pas pu être enregistrée — réessayez avec une autre image.', 'تعذر حفظ الصورة — حاول بصورة أخرى.'));
+        }
+      }, 'image/png');
+    };
+    img.onerror = () => alert(t('Ce fichier ne semble pas être une image valide.', 'يبدو أن هذا الملف ليس صورة صالحة.'));
+    img.src = e.target.result;
+  };
+  reader.onerror = () => alert(t('Impossible de lire ce fichier.', 'تعذر قراءة هذا الملف.'));
+  reader.readAsDataURL(file);
+};
 
-  const logoEl = document.getElementById('tt-logo');
-  if (shopData.logoUrl) {
-    logoEl.src = shopData.logoUrl;
-    logoEl.style.display = 'block';
-  } else {
-    logoEl.style.display = 'none';
-  }
-  document.getElementById('tt-shop').textContent = (shopData.name || 'BARBER').toUpperCase();
-  document.getElementById('tt-sub').textContent = t('Ticket de passage', 'تذكرة الدور');
-  document.getElementById('tt-num').textContent = '#' + myTicket;
-  const now = new Date();
-  document.getElementById('tt-time').textContent = now.toLocaleDateString() + ' — ' + now.toLocaleTimeString();
-  document.getElementById('tt-note').textContent = t('Conservez ce ticket comme preuve de votre numéro', 'احتفظ بهذه التذكرة كإثبات لرقمك');
-  document.getElementById('tt-phone').textContent = shopData.phone || '';
-
-  html2canvas(document.getElementById('ticket-template'), { scale: 2 }).then(canvas => {
-    lastTicketImageUrl = canvas.toDataURL('image/png');
-    document.getElementById('ticket-image-preview').src = lastTicketImageUrl;
-    document.getElementById('ticket-modal-overlay').classList.add('show');
-  }).catch(() => {
-    alert(t('La génération du ticket a échoué — réessayez.', 'فشل إنشاء التذكرة — حاول مرة أخرى.'));
+window.editShopInfo = function () {
+  document.getElementById('s-name').value = shopData.name || '';
+  document.getElementById('s-phone').value = shopData.phone || '';
+  document.getElementById('shop-info-view').classList.add('hidden');
+  document.getElementById('shop-info-edit').classList.remove('hidden');
+};
+window.cancelEditShopInfo = function () {
+  document.getElementById('shop-info-edit').classList.add('hidden');
+  document.getElementById('shop-info-view').classList.remove('hidden');
+};
+window.saveSettings = async function () {
+  await updateDoc(doc(db, 'shops', currentUid), {
+    name: document.getElementById('s-name').value.trim(),
+    phone: document.getElementById('s-phone').value.trim()
   });
+  document.getElementById('shop-info-edit').classList.add('hidden');
+  document.getElementById('shop-info-view').classList.remove('hidden');
 };
-window.closeTicketModal = function () { document.getElementById('ticket-modal-overlay').classList.remove('show'); };
-window.saveTicketImage = function () {
-  if (!lastTicketImageUrl) return;
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  if (isIOS) {
-    // Neither the download attribute nor window.open() with a long data:
-    // URI work reliably in Safari (the latter just opens a blank white
-    // page). The image is already visible right above this button in the
-    // modal — long-pressing it directly is the one method that actually
-    // works consistently on iOS.
-    alert(t('Appuyez longuement sur l\u2019image ci-dessus, puis "Enregistrer l\u2019image".', 'اضغط مطولاً على الصورة أعلاه، ثم اختر "حفظ الصورة".'));
-  } else {
-    const a = document.createElement('a');
-    a.href = lastTicketImageUrl;
-    a.download = 'ticket-' + myTicket + '.png';
-    a.click();
-    closeTicketModal();
+
+window.editCapacity = function () {
+  const box = document.getElementById('capacity-edit');
+  box.style.display = 'flex';
+  document.getElementById('capacity-input').value = shopData.capacity || 50;
+};
+window.confirmCapacity = async function () {
+  const n = parseInt(document.getElementById('capacity-input').value, 10);
+  if (!isNaN(n) && n > 0) await updateDoc(doc(db, 'shops', currentUid), { capacity: n });
+  document.getElementById('capacity-edit').style.display = 'none';
+};
+
+// ---------- colors ----------
+const LIGHT_COLOR_OPTIONS = [['#7C5CFF','Violet'],['#4F46E5','Indigo'],['#2563EB','Bleu Roi'],['#0891B2','Cyan'],['#0D9488','Sarcelle'],['#16A34A','Vert'],['#CA8A04','Ambre'],['#D97706','Orange'],['#DC2626','Rouge'],['#E11D48','Rose Vif'],['#C026D3','Fuchsia'],['#475569','Ardoise']];
+const DARK_COLOR_OPTIONS = [['#9C7CFF','Lavande'],['#818CF8','Indigo Clair'],['#60A5FA','Bleu Ciel'],['#22D3EE','Cyan'],['#2DD4BF','Menthe'],['#4ADE80','Vert Clair'],['#FBBF24','Or'],['#FB923C','Orange Clair'],['#F87171','Rouge Clair'],['#FB7185','Rose'],['#E879F9','Fuchsia Clair'],['#94A3B8','Gris Bleu']];
+const COLOR_PRESETS = [['#7C5CFF','#9C7CFF'],['#2563EB','#60A5FA'],['#0D9488','#2DD4BF'],['#16A34A','#4ADE80'],['#E11D48','#FB7185'],['#D97706','#FBBF24'],['#4F46E5','#818CF8'],['#0891B2','#22D3EE']];
+
+function renderColorDropdown(which, options) {
+  document.getElementById(which + '-color-dropdown').innerHTML = options.map(([hex, name]) =>
+    `<div class="color-option" onclick="selectColorOption('${which}','${hex}')"><span class="color-option-swatch" style="background:${hex};"></span><span>${name}</span></div>`).join('');
+}
+function renderPresets() {
+  document.getElementById('preset-row').innerHTML = COLOR_PRESETS.map(([l, d]) =>
+    `<div class="preset-swatch" style="background:linear-gradient(135deg, ${l} 50%, ${d} 50%);" onclick="applyColorPreset('${l}','${d}')"></div>`).join('');
+}
+window.toggleColorDropdown = function (which) {
+  const id = which + '-color-dropdown', otherId = (which === 'light' ? 'dark' : 'light') + '-color-dropdown';
+  const dd = document.getElementById(id);
+  const isOpen = dd.classList.contains('open');
+  document.getElementById(otherId).classList.remove('open');
+  dd.classList.toggle('open', !isOpen);
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.color-select-wrap')) document.querySelectorAll('.color-dropdown').forEach(d => d.classList.remove('open'));
+});
+window.selectColorOption = async function (which, hex) {
+  document.getElementById(which + '-color-dropdown').classList.remove('open');
+  await updateDoc(doc(db, 'shops', currentUid), which === 'light' ? { accentLight: hex } : { accentDark: hex });
+};
+window.applyColorPreset = async function (light, dark) {
+  await updateDoc(doc(db, 'shops', currentUid), { accentLight: light, accentDark: dark });
+};
+
+// ---------- QR ----------
+window.copyShopLink = async function () {
+  const text = document.getElementById('shop-link').textContent;
+  const btn = document.getElementById('copy-link-btn');
+  try { await navigator.clipboard.writeText(text); btn.textContent = t('Copié !','تم النسخ!'); }
+  catch (e) {
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById('shop-link'));
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    btn.textContent = t('Sélectionné — copie manuellement','تم التحديد — انسخ يدويًا');
+  }
+  setTimeout(() => { btn.textContent = t('Copier le lien','نسخ الرابط'); }, 2000);
+};
+window.downloadQr = function () {
+  const canvas = document.querySelector('#qr-box canvas');
+  const img = document.querySelector('#qr-box img');
+  const src = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
+  if (!src) return;
+  const a = document.createElement('a'); a.href = src; a.download = 'qr-' + shopData.slug + '.png'; a.click();
+};
+
+// ---------- confirm modal ----------
+let pendingAction = null;
+window.askConfirm = function (action, payload) {
+  pendingAction = { action, payload };
+  const num = action === 'recall' ? payload : shopData.chairs[payload];
+  document.getElementById('modal-num').textContent = '#' + num;
+  const messages = {
+    finish: t('Marquer ce client comme terminé ? Le suivant prendra sa place.', 'إنهاء خدمة هذا الزبون؟ سيأخذ التالي مكانه.'),
+    absent: t("Ce client ne s'est pas présenté ? Il sera mis de côté.", 'هذا الزبون لم يحضر؟ سيتم وضعه جانبًا.'),
+    cancel: t('Annuler ce numéro ? Il reviendra au début de la file.', 'إلغاء هذا الرقم؟ سيعود إلى بداية القائمة.'),
+    recall: t('Rappeler ce client en poste maintenant ?', 'استدعاء هذا الزبون للخدمة الآن؟')
+  };
+  document.getElementById('modal-msg').textContent = messages[action];
+  document.getElementById('modal-confirm-btn').classList.toggle('danger', action === 'cancel');
+  document.getElementById('modal-overlay').classList.add('show');
+};
+window.closeModal = function () { document.getElementById('modal-overlay').classList.remove('show'); pendingAction = null; };
+window.confirmModal = async function () {
+  if (!pendingAction) return;
+  const { action, payload } = pendingAction;
+  const ref = doc(db, 'shops', currentUid);
+  await runTransaction(db, async (tx) => {
+    const d = (await tx.get(ref)).data();
+    let waiting = [...(d.waiting || [])], chairs = [...(d.chairs || [])], missed = [...(d.missed || [])];
+    if (action === 'finish') {
+      if (waiting.length > 0) chairs[payload] = waiting.shift(); else chairs.splice(payload, 1);
+    } else if (action === 'absent') {
+      missed.push(chairs[payload]);
+      if (waiting.length > 0) chairs[payload] = waiting.shift(); else chairs.splice(payload, 1);
+    } else if (action === 'cancel') {
+      waiting.unshift(chairs[payload]); chairs.splice(payload, 1);
+    } else if (action === 'recall') {
+      missed = missed.filter(n => n !== payload); chairs.push(payload);
+    }
+    tx.update(ref, { waiting, chairs, missed });
+  });
+  closeModal();
+};
+
+window.askResetQueue = function () {
+  pendingAction = { action: 'reset' };
+  document.getElementById('modal-num').textContent = t('Nouvelle journée','يوم جديد');
+  document.getElementById('modal-msg').textContent = t('Réinitialiser toute la file ? La numérotation repartira de 1.', 'إعادة ضبط الطابور؟ سيبدأ الترقيم من 1.');
+  document.getElementById('modal-confirm-btn').classList.add('danger');
+  document.getElementById('modal-overlay').classList.add('show');
+};
+const origConfirmModal = window.confirmModal;
+let confirmingModal = false;
+window.confirmModal = async function () {
+  if (confirmingModal || !pendingAction) return;
+  confirmingModal = true;
+  const btn = document.getElementById('modal-confirm-btn');
+  btn.disabled = true;
+  try {
+    if (pendingAction.action === 'reset') {
+      await updateDoc(doc(db, 'shops', currentUid), { waiting: [], chairs: [], missed: [], nextTicket: 1 });
+      closeModal();
+    } else {
+      await origConfirmModal();
+    }
+  } finally {
+    confirmingModal = false;
+    btn.disabled = false;
   }
 };
 
 applyAutoTheme();
+renderColorDropdown('light', LIGHT_COLOR_OPTIONS);
+renderColorDropdown('dark', DARK_COLOR_OPTIONS);
+renderPresets();
 const savedLang = localStorage.getItem('barberLang');
 if (savedLang) setLang(savedLang);
-init();
 </script>
 
 <script>
