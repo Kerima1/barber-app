@@ -187,7 +187,7 @@
   </div>
 </div>
 
-<div class="ticket-modal-overlay" id="ticket-modal-overlay">
+<div class="ticket-modal-overlay" id="ticket-modal-overlay" onclick="if (event.target === this) closeTicketModal()">
   <div class="ticket-modal-card">
     <img id="ticket-image-preview" src="" alt="ticket">
     <div style="font-size:11px; color:var(--dim); margin-bottom:12px;" data-fr="Astuce : un appui long sur l'image l'enregistre aussi directement" data-ar="نصيحة: الضغط مطولاً على الصورة يحفظها مباشرة أيضًا">Astuce : un appui long sur l'image l'enregistre aussi directement</div>
@@ -269,25 +269,19 @@ let appleTitleEl = null;
 let manifestNamed = false;
 function setPerShopManifest(name, logoUrl) {
   if (!slug) return;
-  const icons = logoUrl
-    ? [{ src: logoUrl, sizes: "192x192", type: "image/png", purpose: "any maskable" }]
-    : [
-        { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
-        { src: "icon-512.png", sizes: "512x512", type: "image/png" }
-      ];
-  const m = {
-    name: name || "Barber", short_name: name || "Barber",
-    start_url: "client.html?shop=" + slug, scope: "./", display: "standalone",
-    background_color: "#F3EEFB", theme_color: "#7C5CFF",
-    icons
-  };
-  const blob = new Blob([JSON.stringify(m)], { type: 'application/json' });
+  // A real same-origin URL (handled by the service worker), not a blob: URL —
+  // Chrome's install/installability system requires this to offer installing
+  // at all, which is why the install icon never showed up for a shop page.
+  // The shop logo can't travel through a URL this way (base64 images are far
+  // too long), so Android/desktop installs use the generic icon for now;
+  // iOS gets the real logo through its own separate apple-touch-icon tag.
+  const manifestUrl = 'manifest.json?shop=' + encodeURIComponent(slug) + '&name=' + encodeURIComponent(name || 'Barber');
   if (!manifestLinkEl) {
     manifestLinkEl = document.createElement('link');
     manifestLinkEl.rel = 'manifest';
     document.head.appendChild(manifestLinkEl);
   }
-  manifestLinkEl.href = URL.createObjectURL(blob);
+  manifestLinkEl.href = manifestUrl;
 
   if (!appleTitleEl) {
     appleTitleEl = document.createElement('meta');
