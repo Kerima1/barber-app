@@ -340,9 +340,10 @@ function showNotFound() {
 function render() {
   document.getElementById('shop-name').textContent = shopData.name;
   document.getElementById('shop-phone').textContent = shopData.phone || '';
+  const heroLetter = (shopData.name || '?').trim()[0]?.toUpperCase() || '?';
   document.getElementById('hero-icon').innerHTML = shopData.logoUrl
-    ? `<img src="${shopData.logoUrl}" alt="logo">`
-    : `<span class="letter">${(shopData.name || '?').trim()[0]?.toUpperCase() || '?'}</span>`;
+    ? `<img src="${shopData.logoUrl}" alt="logo" onerror="this.parentElement.innerHTML='<span class=\\'letter\\'>${heroLetter}</span>'">`
+    : `<span class="letter">${heroLetter}</span>`;
 
   const chairs = shopData.chairs || [];
   document.getElementById('serving-row').innerHTML = chairs.map(n => `<div class="plaque"><div class="num">${n}</div></div>`).join('')
