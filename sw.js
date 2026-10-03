@@ -1,4 +1,4 @@
-const CACHE = "barber-v21";
+const CACHE = "barber-v22";
 
 self.addEventListener("install", function (e) {
   self.skipWaiting();
@@ -8,11 +8,17 @@ self.addEventListener("activate", function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(
-        keys.filter(function (key) { return key !== CACHE; })
-            .map(function (key) { return caches.delete(key); })
+        keys
+          .filter(function (key) {
+            return key !== CACHE && key !== "logo-cache";
+          })
+          .map(function (key) {
+            return caches.delete(key);
+          })
       );
     })
   );
+
   self.clients.claim();
 });
 
@@ -20,80 +26,174 @@ self.addEventListener("fetch", function (e) {
   if (e.request.method !== "GET") return;
 
   var url = e.request.url;
-  // Never touch Firebase's own network calls — let those go straight through.
+
+  // Never intercept Firebase requests.
   if (url.indexOf("firestore.googleapis.com") >= 0) return;
   if (url.indexOf("identitytoolkit.googleapis.com") >= 0) return;
   if (url.indexOf("securetoken.googleapis.com") >= 0) return;
 
-  // A shop's client page asks for manifest.json?shop=slug&name=... — this
-  // is a REAL fetchable URL (unlike a blob: URL), which is what Chrome's
-  // installability check requires before it'll offer "Install" at all.
-  // We synthesize the response here instead of needing an actual file per shop.
   var reqUrl = new URL(url);
 
-  // A shop's own logo, cached locally by the page (see cacheLogoForInstall
-  // in client.html). This path never exists as a real file, so we must
-  // answer purely from the Cache API — never let this fall through to a
-  // real network request, which would just 404.
+  // ---------------------------------------------------------
+  // SHOP LOGO
+  // ---------------------------------------------------------
+  //
+  // client.html stores each shop logo here:
+  //
+  // logo-cache/<encoded-shop-slug>.png
+  //
+  // We return the cached logo when Android/iOS asks for it.
+  //
   if (reqUrl.pathname.indexOf("/logo-cache/") >= 0) {
     e.respondWith(
-      caches.open("logo-cache").then(function (c) {
-        return c.match(e.request).then(function (cached) {
-          return cached || new Response(null, { status: 404 });
+      caches.open("logo-cache").then(function (cache) {
+        return cache.match(e.request).then(function (cached) {
+          if (cached) {
+            return cached;
+          }
+
+          return new Response(null, {
+            status: 404
+          });
         });
       })
     );
+
     return;
   }
 
-  if (reqUrl.pathname.endsWith("manifest.json") && reqUrl.searchParams.has("shop")) {
-    var shop = reqUrl.searchParams.get("shop");
+  // ---------------------------------------------------------
+  // SHOP-SPECIFIC MANIFEST
+  // ---------------------------------------------------------
+  //
+  // Example:
+  //
+  // manifest.json?shop=fatima&name=Fatima%20Beauty&hasLogo=1
+  //
+  if (
+    reqUrl.pathname.endsWith("manifest.json") &&
+    reqUrl.searchParams.has("shop")
+  ) {
+    var shop = reqUrl.searchParams.get("shop") || "";
     var name = reqUrl.searchParams.get("name") || "Barber";
     var hasLogo = reqUrl.searchParams.get("hasLogo") === "1";
-    var icons = hasLogo
-      ? [
-          { src: "logo-cache/" + shop + ".png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
-          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png" }
-        ]
-      : [
-          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png" }
-        ];
+
+    var encodedShop = encodeURIComponent(shop);
+
+    var logoPath =
+      "logo-cache/" + encodedShop + ".png";
+
+    var icons;
+
+    if (hasLogo) {
+      // IMPORTANT:
+      // When the shop has its own logo, do NOT include the
+      // generic Barber icon. Android may otherwise choose it.
+      icons = [
+        {
+          src: logoPath,
+          sizes: "192x192",
+          type: "image/png",
+          purpose: "any"
+        },
+        {
+          src: logoPath,
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any maskable"
+        }
+      ];
+    } else {
+      // Fallback only when the shop has no uploaded logo.
+      icons = [
+        {
+          src: "icon.svg",
+          sizes: "any",
+          type: "image/svg+xml",
+          purpose: "any"
+        },
+        {
+          src: "icon-512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any"
+        }
+      ];
+    }
+
     var manifest = {
-      id: "./client.html?shop=" + shop,
+      id: "./client.html?shop=" + encodeURIComponent(shop),
+
       name: name,
+
       short_name: name,
-      start_url: "client.html?shop=" + shop,
+
+      start_url:
+        "./client.html?shop=" +
+        encodeURIComponent(shop),
+
       scope: "./",
+
       display: "standalone",
+
       background_color: "#F3EEFB",
+
       theme_color: "#7C5CFF",
+
       icons: icons
     };
-    e.respondWith(new Response(JSON.stringify(manifest), {
-      headers: { "Content-Type": "application/manifest+json" }
-    }));
+
+    e.respondWith(
+      new Response(
+        JSON.stringify(manifest),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/manifest+json",
+            "Cache-Control": "no-store"
+          }
+        }
+      )
+    );
+
     return;
   }
 
-  // Network-first: always try to get the latest version. Only fall back to
-  // a cached copy if the network request fails (e.g. no internet).
+  // ---------------------------------------------------------
+  // NORMAL APP REQUESTS
+  // ---------------------------------------------------------
+  //
+  // Network first.
+  // If there is no internet, use the cached version.
+  //
   e.respondWith(
-    fetch(e.request).then(function (response) {
-      if (response && response.status === 200) {
-        var clone = response.clone();
-        caches.open(CACHE).then(function (c) { c.put(e.request, clone); });
-      }
-      return response;
-    }).catch(function () {
-      return caches.match(e.request).then(function (cached) {
-        if (cached) return cached;
-        // No exact cached copy for this URL — fall back to the SAME kind of
-        // page (client vs owner), never cross the two.
-        var isClientPage = url.indexOf("client.html") >= 0;
-        return caches.match(isClientPage ? "client.html" : "index.html");
-      });
-    })
+    fetch(e.request)
+      .then(function (response) {
+        if (response && response.status === 200) {
+          var clone = response.clone();
+
+          caches.open(CACHE).then(function (cache) {
+            cache.put(e.request, clone);
+          });
+        }
+
+        return response;
+      })
+      .catch(function () {
+        return caches.match(e.request).then(function (cached) {
+          if (cached) {
+            return cached;
+          }
+
+          var isClientPage =
+            url.indexOf("client.html") >= 0;
+
+          return caches.match(
+            isClientPage
+              ? "client.html"
+              : "index.html"
+          );
+        });
+      })
   );
 });
