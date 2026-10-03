@@ -500,6 +500,7 @@ window.saveTicketImage = function () {
     a.href = lastTicketImageUrl;
     a.download = 'ticket-' + myTicket + '.png';
     a.click();
+    closeTicketModal();
   }
 };
 
