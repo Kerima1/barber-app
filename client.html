@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Barber — File d'attente</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- no static apple-touch-icon here on purpose — set dynamically below once
+     we know this shop's own logo, since iOS uses this specific tag (not
+     the manifest) for the image it saves to the home screen -->
 <!-- no static manifest link here on purpose — client.html creates its own
      per-shop one in JS below, so the wrong start_url (the owner page's)
      can never be the first thing a browser sees -->
@@ -250,6 +252,7 @@ let myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(
 // we create it fresh here, so the only manifest that ever exists already
 // has this shop's correct start_url baked in from the very first moment.
 let manifestLinkEl = null;
+let appleTouchIconEl = null;
 function setPerShopManifest(name, logoUrl) {
   if (!slug) return;
   const icons = logoUrl
@@ -272,6 +275,14 @@ function setPerShopManifest(name, logoUrl) {
   }
   manifestLinkEl.href = URL.createObjectURL(blob);
   document.getElementById('apple-app-title').setAttribute('content', name || 'Barber');
+
+  // iOS specifically — the actual image it saves to the home screen
+  if (!appleTouchIconEl) {
+    appleTouchIconEl = document.createElement('link');
+    appleTouchIconEl.rel = 'apple-touch-icon';
+    document.head.appendChild(appleTouchIconEl);
+  }
+  appleTouchIconEl.href = logoUrl || 'apple-touch-icon.png';
 }
 setPerShopManifest(null, null);
 
