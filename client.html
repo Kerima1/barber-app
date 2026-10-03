@@ -6,7 +6,12 @@
 <title>Barber — File d'attente</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="manifest" href="manifest.json">
+<!-- no static manifest link here on purpose — client.html creates its own
+     per-shop one in JS below, so the wrong start_url (the owner page's)
+     can never be the first thing a browser sees -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Barber" id="apple-app-title">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;900&display=swap');
@@ -234,8 +239,11 @@ const storageKey = 'myTicket_' + slug;
 let myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
 
 // per-shop manifest so "Add to Home Screen" reopens this exact shop,
-// using THAT SHOP's own logo and name as the saved icon — not the generic one
-let manifestNamed = false;
+// using THAT SHOP's own logo and name as the saved icon — not the generic one.
+// There is no static <link rel="manifest"> in this page's HTML on purpose —
+// we create it fresh here, so the only manifest that ever exists already
+// has this shop's correct start_url baked in from the very first moment.
+let manifestLinkEl = null;
 function setPerShopManifest(name, logoUrl) {
   if (!slug) return;
   const icons = logoUrl
@@ -251,7 +259,13 @@ function setPerShopManifest(name, logoUrl) {
     icons
   };
   const blob = new Blob([JSON.stringify(m)], { type: 'application/json' });
-  document.querySelector('link[rel="manifest"]').href = URL.createObjectURL(blob);
+  if (!manifestLinkEl) {
+    manifestLinkEl = document.createElement('link');
+    manifestLinkEl.rel = 'manifest';
+    document.head.appendChild(manifestLinkEl);
+  }
+  manifestLinkEl.href = URL.createObjectURL(blob);
+  document.getElementById('apple-app-title').setAttribute('content', name || 'Barber');
 }
 setPerShopManifest(null, null);
 
@@ -349,18 +363,26 @@ function renderMyTicket(chairs, waiting, missed) {
   }
 }
 
+let takingNumber = false;
 window.takeNumber = async function () {
-  if (!uid) return;
-  const ref = doc(db, 'shops', uid);
-  const newTicket = await runTransaction(db, async (tx) => {
-    const d = (await tx.get(ref)).data();
-    const n = d.nextTicket;
-    const waiting = [...(d.waiting || []), n];
-    tx.update(ref, { nextTicket: n + 1, waiting });
-    return n;
-  });
-  myTicket = newTicket;
-  localStorage.setItem(storageKey, String(newTicket));
+  if (!uid || takingNumber) return; // a tap already in flight — ignore repeat taps until it resolves
+  takingNumber = true;
+  const takeBtn = document.getElementById('take-btn');
+  takeBtn.disabled = true;
+  try {
+    const ref = doc(db, 'shops', uid);
+    const newTicket = await runTransaction(db, async (tx) => {
+      const d = (await tx.get(ref)).data();
+      const n = d.nextTicket;
+      const waiting = [...(d.waiting || []), n];
+      tx.update(ref, { nextTicket: n + 1, waiting });
+      return n;
+    });
+    myTicket = newTicket;
+    localStorage.setItem(storageKey, String(newTicket));
+  } finally {
+    takingNumber = false;
+  }
 };
 
 // ---------- ticket image ----------
