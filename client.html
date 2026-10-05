@@ -114,6 +114,15 @@
   .ticket-template .tt-note { margin-top: 16px; font-size: 10.5px; color: #B0A8C4; line-height: 1.5; }
 
   #not-found { display: none; text-align: center; padding: 70px 0; color: var(--dim); }
+
+  /* "you got a number" confirmation popup */
+  .confirm-num-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); align-items: center; justify-content: center; padding: 20px; z-index: 90; }
+  .confirm-num-overlay.show { display: flex; }
+  .confirm-num-card { background: var(--surface); border-radius: 22px; padding: 32px 24px; max-width: 300px; width: 100%; text-align: center; }
+  .confirm-num-card .lbl { font-size: 11px; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; font-weight: 700; margin-bottom: 10px; }
+  .confirm-num-card .num { font-family: 'Space Grotesk', sans-serif; font-size: 68px; font-weight: 700; color: var(--accent); line-height: 1; }
+  .confirm-num-card .hint { margin-top: 14px; font-size: 13px; color: var(--dim); line-height: 1.5; }
+  .confirm-num-card button { width: 100%; margin-top: 20px; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: 12px; font-weight: 700; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -195,6 +204,18 @@
       <button class="ticket-modal-close" onclick="closeTicketModal()" data-fr="Fermer" data-ar="إغلاق">Fermer</button>
       <button class="ticket-modal-save" onclick="saveTicketImage()" data-fr="Enregistrer" data-ar="حفظ">Enregistrer</button>
     </div>
+  </div>
+</div>
+
+<!-- "you got a number" confirmation popup — shown the instant the transaction
+     succeeds, using the number it returned directly, not waiting on the
+     slower live-sync listener to visually catch up -->
+<div class="confirm-num-overlay" id="confirm-num-overlay">
+  <div class="confirm-num-card">
+    <div class="lbl" id="confirm-num-label" data-fr="Votre numéro" data-ar="رقمك">Votre numéro</div>
+    <div class="num" id="confirm-num-value">—</div>
+    <div class="hint" id="confirm-num-hint" data-fr="Gardez cet écran — on vous appellera quand ce sera votre tour." data-ar="احتفظ بهذه الشاشة — سيتم مناداتك عند حلول دورك.">Gardez cet écran — on vous appellera quand ce sera votre tour.</div>
+    <button onclick="closeConfirmNum()" data-fr="D'accord" data-ar="حسنًا">D'accord</button>
   </div>
 </div>
 
@@ -474,11 +495,20 @@ window.takeNumber = async function () {
     });
     myTicket = newTicket;
     localStorage.setItem(storageKey, String(newTicket));
+    // Show the result the instant the transaction confirms — using the
+    // number it just returned directly, rather than waiting for the next
+    // onSnapshot update to visually reflect it. This is what actually
+    // removes the "did it work?" uncertainty that led to re-tapping.
+    document.getElementById('confirm-num-value').textContent = '#' + newTicket;
+    document.getElementById('confirm-num-overlay').classList.add('show');
   } catch (e) {
     takeBtn.disabled = false; // failed — let them try again immediately rather than staying stuck
   } finally {
     takingNumber = false;
   }
+};
+window.closeConfirmNum = function () {
+  document.getElementById('confirm-num-overlay').classList.remove('show');
 };
 
 // ---------- ticket image ----------
