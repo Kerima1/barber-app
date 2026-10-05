@@ -115,14 +115,19 @@
 
   #not-found { display: none; text-align: center; padding: 70px 0; color: var(--dim); }
 
-  /* "you got a number" confirmation popup */
+  /* take-a-number confirmation popup — shown BEFORE committing, same
+     pattern as the owner's manual-number confirm */
   .confirm-num-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); align-items: center; justify-content: center; padding: 20px; z-index: 90; }
   .confirm-num-overlay.show { display: flex; }
   .confirm-num-card { background: var(--surface); border-radius: 22px; padding: 32px 24px; max-width: 300px; width: 100%; text-align: center; }
   .confirm-num-card .lbl { font-size: 11px; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; font-weight: 700; margin-bottom: 10px; }
   .confirm-num-card .num { font-family: 'Space Grotesk', sans-serif; font-size: 68px; font-weight: 700; color: var(--accent); line-height: 1; }
   .confirm-num-card .hint { margin-top: 14px; font-size: 13px; color: var(--dim); line-height: 1.5; }
-  .confirm-num-card button { width: 100%; margin-top: 20px; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: 12px; font-weight: 700; font-size: 14px; }
+  .confirm-num-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .confirm-num-actions button { flex: 1; padding: 14px; border: none; border-radius: 12px; font-weight: 700; font-size: 14px; }
+  .confirm-num-cancel { background: var(--surface-2); color: var(--text); }
+  .confirm-num-ok { background: var(--accent); color: #fff; }
+  .confirm-num-ok:disabled { opacity: .6; }
 </style>
 </head>
 <body>
@@ -160,7 +165,7 @@
     <div class="waiting-count" id="waiting-count"></div>
   </div>
 
-  <button class="take-btn" id="take-btn" onclick="takeNumber()" data-fr="Prendre mon numéro" data-ar="خذ رقمك">Prendre mon numéro</button>
+  <button class="take-btn" id="take-btn" onclick="askTakeNumber()" data-fr="Prendre mon numéro" data-ar="خذ رقمك">Prendre mon numéro</button>
 
   <div class="ticket" id="ticket">
     <div class="lbl" id="ticket-lbl" data-fr="Votre numéro" data-ar="رقمك">Votre numéro</div>
@@ -207,9 +212,19 @@
   </div>
 </div>
 
-<!-- "you got a number" confirmation popup — shown the instant the transaction
-     succeeds, using the number it returned directly, not waiting on the
-     slower live-sync listener to visually catch up -->
+<!-- step 1: ask before committing, same pattern as the owner's manual-number flow -->
+<div class="confirm-num-overlay" id="ask-num-overlay">
+  <div class="confirm-num-card">
+    <div class="lbl" data-fr="Prendre ce numéro ?" data-ar="أخذ هذا الرقم؟">Prendre ce numéro ?</div>
+    <div class="num" id="ask-num-value">—</div>
+    <div class="confirm-num-actions">
+      <button class="confirm-num-cancel" onclick="closeAskNum()" data-fr="Annuler" data-ar="إلغاء">Annuler</button>
+      <button class="confirm-num-ok" id="ask-num-confirm-btn" onclick="confirmTakeNumber()" data-fr="Confirmer" data-ar="تأكيد">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- step 2: the result, shown after it's actually committed -->
 <div class="confirm-num-overlay" id="confirm-num-overlay">
   <div class="confirm-num-card">
     <div class="lbl" id="confirm-num-label" data-fr="Votre numéro" data-ar="رقمك">Votre numéro</div>
@@ -478,12 +493,24 @@ function renderMyTicket(chairs, waiting, missed) {
   }
 }
 
+// step 1 — show the number they're about to take and ask them to confirm,
+// same pattern as the owner's manual-number button
+window.askTakeNumber = function () {
+  if (!uid || !shopData) return;
+  document.getElementById('ask-num-value').textContent = '#' + shopData.nextTicket;
+  document.getElementById('ask-num-overlay').classList.add('show');
+};
+window.closeAskNum = function () {
+  document.getElementById('ask-num-overlay').classList.remove('show');
+};
+
+// step 2 — only runs once they've actually tapped Confirmer
 let takingNumber = false;
-window.takeNumber = async function () {
-  if (!uid || takingNumber) return; // a tap already in flight — ignore repeat taps until it resolves
+window.confirmTakeNumber = async function () {
+  if (takingNumber) return; // a tap already in flight — ignore repeat taps until it resolves
   takingNumber = true;
-  const takeBtn = document.getElementById('take-btn');
-  takeBtn.disabled = true;
+  const confirmBtn = document.getElementById('ask-num-confirm-btn');
+  confirmBtn.disabled = true;
   try {
     const ref = doc(db, 'shops', uid);
     const newTicket = await runTransaction(db, async (tx) => {
@@ -495,16 +522,16 @@ window.takeNumber = async function () {
     });
     myTicket = newTicket;
     localStorage.setItem(storageKey, String(newTicket));
-    // Show the result the instant the transaction confirms — using the
-    // number it just returned directly, rather than waiting for the next
-    // onSnapshot update to visually reflect it. This is what actually
-    // removes the "did it work?" uncertainty that led to re-tapping.
+    closeAskNum();
+    // The actual confirmed number — may occasionally differ from the
+    // preview shown a moment ago, if someone else took one in between.
     document.getElementById('confirm-num-value').textContent = '#' + newTicket;
     document.getElementById('confirm-num-overlay').classList.add('show');
   } catch (e) {
-    takeBtn.disabled = false; // failed — let them try again immediately rather than staying stuck
+    alert(t('Une erreur est survenue — réessayez.', 'حدث خطأ — حاول مرة أخرى.'));
   } finally {
     takingNumber = false;
+    confirmBtn.disabled = false;
   }
 };
 window.closeConfirmNum = function () {
