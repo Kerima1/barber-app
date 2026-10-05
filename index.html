@@ -542,7 +542,7 @@ function renderDashboard() {
     <div class="missed-chip"><div class="num">#${n}</div><button class="btn-small" onclick="askConfirm('recall', ${n})">${t('Rappeler','استدعاء')}</button></div>`).join('');
 
   const waiting = shopData.waiting || [];
-  document.getElementById('waiting-box').innerHTML = waiting.map((n, i) => `<span class="${i === 0 ? 'first' : ''}${manualNumbers.includes(n) ? ' manual-num' : ''}">${n}${manualNumbers.includes(n) ? manualTag : ''}</span>`).join('')
+  document.getElementById('waiting-box').innerHTML = waiting.slice(0, 6).map((n, i) => `<span class="${i === 0 ? 'first' : ''}${manualNumbers.includes(n) ? ' manual-num' : ''}">${n}${manualNumbers.includes(n) ? manualTag : ''}</span>`).join('')
     || `<span style="opacity:.5;">${t('Aucun','لا يوجد')}</span>`;
   document.getElementById('waiting-count').textContent = waiting.length > 0 ? waiting.length + ' ' + t('en attente au total','بالانتظار إجمالاً') : '';
 
@@ -830,20 +830,23 @@ window.confirmModal = async function () {
   if (confirmingModal || !pendingAction) return;
   confirmingModal = true;
   const btn = document.getElementById('modal-confirm-btn');
+  const originalLabel = btn.textContent;
   btn.disabled = true;
+  btn.textContent = t('Un instant…', 'لحظة من فضلك…');
   try {
     if (pendingAction.action === 'reset') {
       await updateDoc(doc(db, 'shops', currentUid), { waiting: [], chairs: [], missed: [], nextTicket: 1, manualNumbers: [] });
       closeModal();
     } else if (pendingAction.action === 'manual') {
-      closeModal();
       await runGiveManualNumber();
+      closeModal();
     } else {
       await origConfirmModal();
     }
   } finally {
     confirmingModal = false;
     btn.disabled = false;
+    btn.textContent = originalLabel;
   }
 };
 
