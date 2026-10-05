@@ -84,9 +84,9 @@
   .waiting-nums { display: flex; gap: 8px; flex-wrap: wrap; }
   .waiting-nums span { font-family: 'Space Grotesk', sans-serif; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; font-size: 18px; color: var(--dim); }
   .waiting-nums span.first { color: #fff; background: var(--accent); border-color: var(--accent); }
-  .waiting-nums span.manual { background: #4A2FC2; border-color: #4A2FC2; color: #fff; }
-  .chair.manual { background: #4A2FC2; border-color: #4A2FC2; }
-  .chair.manual .num { color: #fff; }
+  .waiting-nums span.manual-num { display: inline-flex; align-items: center; gap: 5px; }
+  .manual-tag { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 9.5px; font-weight: 700; color: var(--dim); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 5px; text-transform: uppercase; letter-spacing: .3px; }
+  .chair .manual-tag { margin-left: 8px; }
   .btn-finish { background: var(--accent); color: #fff; }
   .btn-absent { background: var(--surface); color: var(--dim); border: 1px solid var(--border) !important; }
   .btn-cancel { background: transparent; color: var(--danger); border: 1px solid var(--danger) !important; }
@@ -185,15 +185,19 @@
   </div>
 
   <div id="tab-panel">
+    <div class="card" style="text-align:center;">
+      <div class="eyebrow" style="margin-bottom:6px;" data-fr="File d'aujourd'hui" data-ar="طابور اليوم">File d'aujourd'hui</div>
+      <div id="panel-capacity-text" style="font-family:'Space Grotesk',sans-serif; font-size:22px; font-weight:700;">0 / 50</div>
+    </div>
     <div class="card">
       <div class="eyebrow" data-fr="Postes en cours" data-ar="المقاعد النشطة">Postes en cours</div>
       <div id="chairs-box"></div>
       <button class="btn-ghost" onclick="addChair()" data-fr="+ Ajouter un poste" data-ar="+ إضافة مقعد">+ Ajouter un poste</button>
-      <button class="btn-ghost" style="margin-top:8px; border-style:dashed; background:transparent; color:var(--accent); border-color:var(--accent);" onclick="giveManualNumber()" data-fr="+ Donner un numéro" data-ar="+ إعطاء رقم">+ Donner un numéro</button>
-      <div class="muted" style="margin-top:8px; display:flex; align-items:center; gap:7px;">
-        <span style="display:inline-block; width:12px; height:12px; border-radius:4px; background:#4A2FC2; flex-shrink:0;"></span>
-        <span data-fr="= numéro donné manuellement" data-ar="= رقم تم إعطاؤه يدويًا">= numéro donné manuellement</span>
-      </div>
+      <button class="btn-ghost" style="margin-top:8px;" onclick="askConfirm('manual', null)" data-fr="+ Donner un numéro" data-ar="+ إعطاء رقم">+ Donner un numéro</button>
+    </div>
+    <div class="card hidden" id="manual-list-card">
+      <div class="eyebrow" data-fr="Numéros donnés manuellement" data-ar="أرقام أُعطيت يدويًا">Numéros donnés manuellement</div>
+      <div class="waiting-nums" id="manual-list-box"></div>
     </div>
     <div class="card hidden" id="missed-card">
       <div class="eyebrow" data-fr="Ne s'est pas présenté" data-ar="لم يحضر">Ne s'est pas présenté</div>
@@ -520,10 +524,11 @@ function renderDashboard() {
   document.getElementById('settings-icon').innerHTML = iconHtml(shopData.logoUrl, shopData.name);
 
   const manualNumbers = shopData.manualNumbers || [];
+  const manualTag = `<span class="manual-tag">${t('Manuel','يدوي')}</span>`;
 
   document.getElementById('chairs-box').innerHTML = (shopData.chairs || []).map((num, i) => `
-    <div class="chair${manualNumbers.includes(num) ? ' manual' : ''}">
-      <div class="num">${num}</div>
+    <div class="chair">
+      <div class="num">${num}${manualNumbers.includes(num) ? manualTag : ''}</div>
       <div class="chair-actions">
         <button class="btn-cancel" onclick="askConfirm('cancel', ${i})">${t('Annuler','إلغاء')}</button>
         <button class="btn-absent" onclick="askConfirm('absent', ${i})">${t('Absent','غائب')}</button>
@@ -537,13 +542,18 @@ function renderDashboard() {
     <div class="missed-chip"><div class="num">#${n}</div><button class="btn-small" onclick="askConfirm('recall', ${n})">${t('Rappeler','استدعاء')}</button></div>`).join('');
 
   const waiting = shopData.waiting || [];
-  document.getElementById('waiting-box').innerHTML = waiting.map((n, i) => `<span class="${i === 0 ? 'first' : ''}${manualNumbers.includes(n) ? ' manual' : ''}">${n}</span>`).join('')
+  document.getElementById('waiting-box').innerHTML = waiting.map((n, i) => `<span class="${i === 0 ? 'first' : ''}${manualNumbers.includes(n) ? ' manual-num' : ''}">${n}${manualNumbers.includes(n) ? manualTag : ''}</span>`).join('')
     || `<span style="opacity:.5;">${t('Aucun','لا يوجد')}</span>`;
   document.getElementById('waiting-count').textContent = waiting.length > 0 ? waiting.length + ' ' + t('en attente au total','بالانتظار إجمالاً') : '';
+
+  const todaysManual = manualNumbers.filter(n => (waiting.includes(n) || (shopData.chairs || []).includes(n) || (shopData.missed || []).includes(n)));
+  document.getElementById('manual-list-card').classList.toggle('hidden', todaysManual.length === 0);
+  document.getElementById('manual-list-box').innerHTML = todaysManual.map(n => `<span>${n}</span>`).join('');
 
   document.getElementById('shop-name-text').textContent = shopData.name || '—';
   document.getElementById('shop-phone-text').textContent = shopData.phone || '—';
   document.getElementById('capacity-text').textContent = (shopData.nextTicket - 1) + ' / ' + (shopData.capacity || 50);
+  document.getElementById('panel-capacity-text').textContent = (shopData.nextTicket - 1) + ' / ' + (shopData.capacity || 50);
 
   document.getElementById('light-select-swatch').style.background = accentLight;
   document.getElementById('light-select-label').textContent = accentLight.toUpperCase();
@@ -574,43 +584,36 @@ window.addChair = async function () {
   }
 };
 
-let givingManualNumber = false;
-window.giveManualNumber = async function () {
-  if (givingManualNumber) return;
-  givingManualNumber = true;
-  try {
-    const ref = doc(db, 'shops', currentUid);
-    const result = await runTransaction(db, async (tx) => {
-      const d = (await tx.get(ref)).data();
-      const capacity = d.capacity || 50;
-      if (d.nextTicket > capacity) return { full: true };
-      const n = d.nextTicket;
-      const waiting = [...(d.waiting || []), n];
-      const manualNumbers = [...(d.manualNumbers || []), n];
-      tx.update(ref, { nextTicket: n + 1, waiting, manualNumbers });
-      return { full: false, number: n };
-    });
+async function runGiveManualNumber() {
+  const ref = doc(db, 'shops', currentUid);
+  const result = await runTransaction(db, async (tx) => {
+    const d = (await tx.get(ref)).data();
+    const capacity = d.capacity || 50;
+    if (d.nextTicket > capacity) return { full: true };
+    const n = d.nextTicket;
+    const waiting = [...(d.waiting || []), n];
+    const manualNumbers = [...(d.manualNumbers || []), n];
+    tx.update(ref, { nextTicket: n + 1, waiting, manualNumbers });
+    return { full: false, number: n };
+  });
 
-    if (result.full) {
-      document.getElementById('manual-modal-label').textContent = t('File complète', 'الطابور ممتلئ');
-      document.getElementById('manual-modal-num').textContent = '✕';
-      document.getElementById('manual-modal-msg').textContent = t(
-        'La limite de numéros pour aujourd\u2019hui est atteinte. Impossible de donner un nouveau numéro tant que la file n\u2019est pas réinitialisée.',
-        'تم الوصول إلى الحد الأقصى لعدد اليوم. لا يمكن إعطاء رقم جديد قبل إعادة ضبط الطابور.'
-      );
-    } else {
-      document.getElementById('manual-modal-label').textContent = t('Numéro attribué', 'الرقم المعطى');
-      document.getElementById('manual-modal-num').textContent = '#' + result.number;
-      document.getElementById('manual-modal-msg').textContent = t(
-        'Dites ce numéro au client, ou écrivez-le sur un papier. Il entre dans la file comme tout le monde.',
-        'أخبر الزبون بهذا الرقم، أو اكتبه على ورقة. سيدخل في الطابور مثل الجميع.'
-      );
-    }
-    document.getElementById('manual-modal-overlay').classList.add('show');
-  } finally {
-    givingManualNumber = false;
+  if (result.full) {
+    document.getElementById('manual-modal-label').textContent = t('File complète', 'الطابور ممتلئ');
+    document.getElementById('manual-modal-num').textContent = '✕';
+    document.getElementById('manual-modal-msg').textContent = t(
+      'La limite de numéros pour aujourd\u2019hui est atteinte. Impossible de donner un nouveau numéro tant que la file n\u2019est pas réinitialisée.',
+      'تم الوصول إلى الحد الأقصى لعدد اليوم. لا يمكن إعطاء رقم جديد قبل إعادة ضبط الطابور.'
+    );
+  } else {
+    document.getElementById('manual-modal-label').textContent = t('Numéro attribué', 'الرقم المعطى');
+    document.getElementById('manual-modal-num').textContent = '#' + result.number;
+    document.getElementById('manual-modal-msg').textContent = t(
+      'Dites ce numéro au client, ou écrivez-le sur un papier. Il entre dans la file comme tout le monde.',
+      'أخبر الزبون بهذا الرقم، أو اكتبه على ورقة. سيدخل في الطابور مثل الجميع.'
+    );
   }
-};
+  document.getElementById('manual-modal-overlay').classList.add('show');
+}
 window.closeManualModal = function () { document.getElementById('manual-modal-overlay').classList.remove('show'); };
 
 window.handleIconUpload = function (event) {
@@ -772,6 +775,13 @@ window.downloadQr = async function () {
 let pendingAction = null;
 window.askConfirm = function (action, payload) {
   pendingAction = { action, payload };
+  if (action === 'manual') {
+    document.getElementById('modal-num').textContent = '#' + shopData.nextTicket;
+    document.getElementById('modal-msg').textContent = t('Donner ce numéro à un client sur place ?', 'إعطاء هذا الرقم لزبون حاضر؟');
+    document.getElementById('modal-confirm-btn').classList.remove('danger');
+    document.getElementById('modal-overlay').classList.add('show');
+    return;
+  }
   const num = action === 'recall' ? payload : shopData.chairs[payload];
   document.getElementById('modal-num').textContent = '#' + num;
   const messages = {
@@ -825,6 +835,9 @@ window.confirmModal = async function () {
     if (pendingAction.action === 'reset') {
       await updateDoc(doc(db, 'shops', currentUid), { waiting: [], chairs: [], missed: [], nextTicket: 1, manualNumbers: [] });
       closeModal();
+    } else if (pendingAction.action === 'manual') {
+      closeModal();
+      await runGiveManualNumber();
     } else {
       await origConfirmModal();
     }
