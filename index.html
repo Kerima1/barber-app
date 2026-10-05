@@ -795,7 +795,11 @@ window.confirmModal = async function () {
     missed.push(chairs[payload]);
     if (waiting.length > 0) chairs[payload] = waiting.shift(); else chairs.splice(payload, 1);
   } else if (action === 'cancel') {
-    waiting.unshift(chairs[payload]); chairs.splice(payload, 1);
+    const n = chairs[payload];
+    let i = 0;
+    while (i < waiting.length && waiting[i] < n) i++;
+    waiting.splice(i, 0, n);
+    chairs.splice(payload, 1);
   } else if (action === 'recall') {
     missed = missed.filter(n => n !== payload); chairs.push(payload);
   }
