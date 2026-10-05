@@ -568,20 +568,10 @@ function renderDashboard() {
 }
 
 let addingChair = false;
-window.addChair = async function () {
-  if (addingChair) return;
-  addingChair = true;
-  try {
-    const ref = doc(db, 'shops', currentUid);
-    await runTransaction(db, async (tx) => {
-      const d = (await tx.get(ref)).data();
-      const waiting = [...(d.waiting || [])], chairs = [...(d.chairs || [])];
-      if (waiting.length > 0) chairs.push(waiting.shift());
-      tx.update(ref, { waiting, chairs });
-    });
-  } finally {
-    addingChair = false;
-  }
+window.addChair = function () {
+  const waiting = [...(shopData.waiting || [])], chairs = [...(shopData.chairs || [])];
+  if (waiting.length > 0) chairs.push(waiting.shift());
+  updateDoc(doc(db, 'shops', currentUid), { waiting, chairs });
 };
 
 async function runGiveManualNumber() {
@@ -798,22 +788,21 @@ window.closeModal = function () { document.getElementById('modal-overlay').class
 window.confirmModal = async function () {
   if (!pendingAction) return;
   const { action, payload } = pendingAction;
-  const ref = doc(db, 'shops', currentUid);
-  await runTransaction(db, async (tx) => {
-    const d = (await tx.get(ref)).data();
-    let waiting = [...(d.waiting || [])], chairs = [...(d.chairs || [])], missed = [...(d.missed || [])];
-    if (action === 'finish') {
-      if (waiting.length > 0) chairs[payload] = waiting.shift(); else chairs.splice(payload, 1);
-    } else if (action === 'absent') {
-      missed.push(chairs[payload]);
-      if (waiting.length > 0) chairs[payload] = waiting.shift(); else chairs.splice(payload, 1);
-    } else if (action === 'cancel') {
-      waiting.unshift(chairs[payload]); chairs.splice(payload, 1);
-    } else if (action === 'recall') {
-      missed = missed.filter(n => n !== payload); chairs.push(payload);
-    }
-    tx.update(ref, { waiting, chairs, missed });
-  });
+  let waiting = [...(shopData.waiting || [])], chairs = [...(shopData.chairs || [])], missed = [...(shopData.missed || [])];
+  if (action === 'finish') {
+    if (waiting.length > 0) chairs[payload] = waiting.shift(); else chairs.splice(payload, 1);
+  } else if (action === 'absent') {
+    missed.push(chairs[payload]);
+    if (waiting.length > 0) chairs[payload] = waiting.shift(); else chairs.splice(payload, 1);
+  } else if (action === 'cancel') {
+    waiting.unshift(chairs[payload]); chairs.splice(payload, 1);
+  } else if (action === 'recall') {
+    missed = missed.filter(n => n !== payload); chairs.push(payload);
+  }
+  // updateDoc (unlike runTransaction) applies to the local view immediately,
+  // then syncs with the server in the background — this is what makes it
+  // feel instant instead of waiting on a round-trip first.
+  updateDoc(doc(db, 'shops', currentUid), { waiting, chairs, missed });
   closeModal();
 };
 
@@ -830,9 +819,7 @@ window.confirmModal = async function () {
   if (confirmingModal || !pendingAction) return;
   confirmingModal = true;
   const btn = document.getElementById('modal-confirm-btn');
-  const originalLabel = btn.textContent;
   btn.disabled = true;
-  btn.textContent = t('Un instant…', 'لحظة من فضلك…');
   try {
     if (pendingAction.action === 'reset') {
       await updateDoc(doc(db, 'shops', currentUid), { waiting: [], chairs: [], missed: [], nextTicket: 1, manualNumbers: [] });
@@ -846,7 +833,6 @@ window.confirmModal = async function () {
   } finally {
     confirmingModal = false;
     btn.disabled = false;
-    btn.textContent = originalLabel;
   }
 };
 
