@@ -493,7 +493,18 @@ async function init() {
     const slugSnap = await getDoc(doc(db, 'slugs', slug));
     if (!slugSnap.exists()) { showNotFound(); return; }
     uid = slugSnap.data().uid;
-    unsubscribeShop = onSnapshot(doc(db, 'shops', uid), (snap) => {
+
+    // Same safety net as the directory list: on some mobile networks the
+    // realtime connection can silently stall with no data AND no error,
+    // which used to leave this screen blank forever. requestSlug/requestUid
+    // guard against a late fallback applying to a shop the person has
+    // already navigated away from.
+    const requestSlug = slug;
+    const requestUid = uid;
+    let gotShopData = false;
+
+    function applyShopDoc(snap) {
+      if (slug !== requestSlug || uid !== requestUid) return; // navigated away already
       if (!snap.exists()) { showNotFound(); return; }
       shopData = snap.data();
 
@@ -507,7 +518,24 @@ async function init() {
       updateThemeColor();
       addToHistory(slug, shopData.name, shopData.logoUrl);
       render();
-    }, () => showLoadError()); // onSnapshot's own error callback — fires if the live connection drops
+    }
+
+    function fetchShopDocOnce() {
+      if (gotShopData || slug !== requestSlug) return;
+      getDoc(doc(db, 'shops', requestUid)).then((snap) => {
+        if (gotShopData || slug !== requestSlug) return; // listener caught up meanwhile
+        gotShopData = true;
+        applyShopDoc(snap);
+      }).catch(() => {
+        if (!gotShopData && slug === requestSlug) showLoadError();
+      });
+    }
+
+    unsubscribeShop = onSnapshot(doc(db, 'shops', uid), (snap) => {
+      gotShopData = true;
+      applyShopDoc(snap);
+    }, () => { if (!gotShopData) fetchShopDocOnce(); }); // onSnapshot's own error callback
+    setTimeout(() => { if (!gotShopData) fetchShopDocOnce(); }, 4000);
   } catch (e) {
     showLoadError();
   }
