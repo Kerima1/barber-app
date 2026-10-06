@@ -130,7 +130,9 @@
   /* ---------- directory (home / shop list) ---------- */
   .dir-title { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 14px; text-align: center; }
   .dir-search-row { display: flex; gap: 8px; margin-bottom: 10px; }
-  .dir-search { flex: 1; padding: 13px 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit; -webkit-appearance: none; appearance: none; }
+  .dir-search { flex: 1; padding: 13px 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit; -webkit-appearance: none; appearance: none; outline: none; caret-color: var(--accent); }
+  .dir-search:focus { border-color: var(--accent); }
+  input, textarea { outline: none; -webkit-tap-highlight-color: transparent; }
   .dir-icon-btn { width: 46px; height: 46px; flex-shrink: 0; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--accent); display: flex; align-items: center; justify-content: center; }
   .dir-near-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 11px; margin-bottom: 18px; border-radius: 12px; border: 1px dashed var(--accent); background: transparent; color: var(--accent); font-weight: 700; font-size: 12.5px; }
   .dir-near-btn.active { border-style: solid; background: var(--surface-2); }
@@ -515,6 +517,10 @@ window.openShop = function (newSlug) {
   storageKey = 'myTicket_' + slug;
   myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
   history.replaceState(null, '', location.pathname + '?shop=' + encodeURIComponent(slug));
+  // Remember this as "my shop" — the installed app icon has one fixed start_url
+  // (no shop in it), so this is what lets a cold launch from the home screen
+  // land back on the shop the person actually uses, instead of the directory.
+  localStorage.setItem('barberLastShop', slug);
   init();
 };
 
@@ -610,7 +616,7 @@ function getHistory() {
 function addToHistory(hSlug, name, logoUrl) {
   let list = getHistory().filter(h => h.slug !== hSlug);
   list.unshift({ slug: hSlug, name, logoUrl: logoUrl || null });
-  list = list.slice(0, 8);
+  list = list.slice(0, 5);
   localStorage.setItem('barberHistory', JSON.stringify(list));
 }
 function renderHistory() {
@@ -970,6 +976,24 @@ window.saveTicketImage = async function () {
 applyAutoTheme();
 const savedLang = localStorage.getItem('barberLang');
 if (savedLang) setLang(savedLang);
+
+// A fresh launch with no ?shop= in the URL — this is what happens every time
+// the installed home-screen icon is tapped, since the app's start_url is the
+// same for every shop. If this person already has a shop they use, open that
+// one directly instead of showing the directory; the directory is still one
+// tap away via "Autres salons".
+if (!slug) {
+  const remembered = localStorage.getItem('barberLastShop');
+  if (remembered) {
+    slug = remembered;
+    storageKey = 'myTicket_' + slug;
+    myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
+  }
+} else {
+  // Arrived with a shop already in the link (a fresh QR scan, a shared link) —
+  // that becomes the new "my shop" going forward.
+  localStorage.setItem('barberLastShop', slug);
+}
 init();
 </script>
 
