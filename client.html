@@ -13,6 +13,8 @@
 <meta name="theme-color" content="#7C5CFF">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;900&display=swap');
 
@@ -136,8 +138,16 @@
   .dir-search:focus { border-color: var(--accent); }
   input, textarea { outline: none; -webkit-tap-highlight-color: transparent; }
   .dir-icon-btn { width: 46px; height: 46px; flex-shrink: 0; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--accent); display: flex; align-items: center; justify-content: center; }
-  .dir-near-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 11px; margin-bottom: 18px; border-radius: 12px; border: 1px dashed var(--accent); background: transparent; color: var(--accent); font-weight: 700; font-size: 12.5px; }
+  .dir-near-row { display: flex; gap: 8px; margin-bottom: 18px; }
+  .dir-near-btn { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; padding: 11px; border-radius: 12px; border: 1px dashed var(--accent); background: transparent; color: var(--accent); font-weight: 700; font-size: 12.5px; }
   .dir-near-btn.active { border-style: solid; background: var(--surface-2); }
+  #dir-map { height: 280px; border-radius: 16px; overflow: hidden; margin: -8px 0 18px; border: 1px solid var(--border); }
+  #dir-map .leaflet-popup-content-wrapper { background: var(--surface); color: var(--text); border-radius: 12px; }
+  #dir-map .leaflet-popup-tip { background: var(--surface); }
+  .map-pin-popup { text-align: center; min-width: 120px; }
+  .map-pin-popup .mp-name { font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+  .map-pin-popup button { display: block; width: 100%; padding: 8px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 700; font-size: 12.5px; margin-bottom: 6px; }
+  .map-pin-popup a { font-size: 11.5px; color: var(--dim); text-decoration: underline; }
 
   .dir-section-lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); margin: 18px 0 10px; text-align: left; }
   body.ar .dir-section-lbl { text-align: right; }
@@ -203,10 +213,18 @@
     <input type="file" id="scan-file-input" accept="image/*" style="display:none;" onchange="handleScanFile(event)">
   </div>
 
-  <button class="dir-near-btn" id="dir-near-btn" onclick="findNearMe()">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-    <span data-fr="Trier par proximité" data-ar="الترتيب حسب القرب">Trier par proximité</span>
-  </button>
+  <div class="dir-near-row">
+    <button class="dir-near-btn" id="dir-near-btn" onclick="findNearMe()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      <span data-fr="Trier par proximité" data-ar="الترتيب حسب القرب">Trier par proximité</span>
+    </button>
+    <button class="dir-near-btn" id="dir-map-btn" onclick="toggleMap()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 4v13M15 7v13"/></svg>
+      <span data-fr="Voir la carte" data-ar="عرض الخريطة">Voir la carte</span>
+    </button>
+  </div>
+
+  <div id="dir-map" style="display:none;"></div>
 
   <div id="dir-history-section" style="display:none;">
     <div class="dir-section-lbl" data-fr="Récemment visités" data-ar="تمت زيارتها مؤخرًا">Récemment visités</div>
@@ -571,6 +589,7 @@ function loadDirectoryList() {
       });
     });
     renderDirectoryList();
+    if (mapInstance) renderMapMarkers();
   });
 }
 
@@ -600,6 +619,82 @@ window.findNearMe = function () {
     { enableHighAccuracy: true, timeout: 10000 }
   );
 };
+
+// ---------- map (shows "my location" as a circle + every shop as a pin) ----------
+let mapInstance = null;
+let myMarker = null;
+let shopMarkers = [];
+
+window.toggleMap = function () {
+  const box = document.getElementById('dir-map');
+  const isOpen = box.style.display !== 'none';
+  if (isOpen) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+
+  if (!myCoords) {
+    // ask for location the first time the map is opened, same prompt as "Trier par proximité"
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          document.getElementById('dir-near-btn').classList.add('active');
+          renderDirectoryList();
+          openMap();
+        },
+        () => openMap(), // no permission — still show the shops, just without "my location"
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+      return;
+    }
+  }
+  openMap();
+};
+
+function openMap() {
+  const box = document.getElementById('dir-map');
+  const center = myCoords ? [myCoords.lat, myCoords.lng]
+    : (allShops.find(s => typeof s.lat === 'number') ? [allShops.find(s => typeof s.lat === 'number').lat, allShops.find(s => typeof s.lat === 'number').lng] : [18.0858, -15.9785]); // fallback: Nouakchott
+
+  if (!mapInstance) {
+    mapInstance = L.map(box, { zoomControl: true }).setView(center, 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+      maxZoom: 19
+    }).addTo(mapInstance);
+  } else {
+    mapInstance.invalidateSize();
+    mapInstance.setView(center, mapInstance.getZoom() || 13);
+  }
+  renderMapMarkers();
+}
+
+function renderMapMarkers() {
+  if (!mapInstance) return;
+
+  if (myMarker) { mapInstance.removeLayer(myMarker); myMarker = null; }
+  if (myCoords) {
+    myMarker = L.circleMarker([myCoords.lat, myCoords.lng], {
+      radius: 9, color: '#fff', weight: 3, fillColor: '#7C5CFF', fillOpacity: 1
+    }).addTo(mapInstance).bindPopup(t('Vous êtes ici', 'أنت هنا'));
+  }
+
+  shopMarkers.forEach(m => mapInstance.removeLayer(m));
+  shopMarkers = [];
+  allShops.forEach(s => {
+    if (typeof s.lat !== 'number' || typeof s.lng !== 'number') return;
+    const marker = L.marker([s.lat, s.lng]).addTo(mapInstance);
+    const safeSlug = (s.slug || '').replace(/'/g, "\\'");
+    const dirUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + s.lat + ',' + s.lng;
+    marker.bindPopup(
+      `<div class="map-pin-popup">
+        <div class="mp-name">${s.name}</div>
+        <button onclick="openShop('${safeSlug}')">${t('Ouvrir', 'فتح')}</button>
+        <a href="${dirUrl}" target="_blank" rel="noopener">${t('Itinéraire (Google Maps)', 'الاتجاهات (خرائط Google)')}</a>
+      </div>`
+    );
+    shopMarkers.push(marker);
+  });
+}
 
 window.renderDirectoryList = function () {
   const term = (document.getElementById('dir-search-input').value || '').trim().toLowerCase();
