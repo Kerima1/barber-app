@@ -246,9 +246,16 @@
   </div>
 
   <div class="dir-section-lbl" data-fr="Tous les salons" data-ar="كل الصالونات">Tous les salons</div>
+  <div id="dir-loading" style="padding:30px 0; text-align:center; color:var(--dim); font-size:13px;" data-fr="Chargement des salons…" data-ar="جارٍ تحميل الصالونات…">Chargement des salons…</div>
   <div id="dir-list"></div>
   <div class="dir-empty" id="dir-empty" style="display:none;" data-fr="Aucun salon trouvé." data-ar="لم يتم العثور على أي صالون.">Aucun salon trouvé.</div>
+  <div id="dir-error" style="display:none; text-align:center; padding:30px 0; color:var(--dim);">
+    <p data-fr="Impossible de charger les salons." data-ar="تعذر تحميل الصالونات.">Impossible de charger les salons.</p>
+    <p style="opacity:.7; font-size:13px; margin-top:6px;" data-fr="Vérifiez votre connexion internet." data-ar="تحقق من اتصالك بالإنترنت.">Vérifiez votre connexion internet.</p>
+    <button class="take-btn" style="width:auto; padding:12px 24px; margin-top:16px; display:inline-block;" onclick="loadDirectoryList()" data-fr="Réessayer" data-ar="إعادة المحاولة">Réessayer</button>
+  </div>
 </div>
+<div id="crash-banner" style="display:none; position:fixed; left:12px; right:12px; bottom:12px; z-index:99999; background:#b00020; color:#fff; font-size:12px; line-height:1.4; padding:12px 14px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,.3); max-height:40vh; overflow:auto;"></div>
 
 <div class="wrap" id="app" style="display:none;">
 
@@ -391,6 +398,24 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 enableIndexedDbPersistence(db).catch(() => {});
 
+// ---------- visible crash reporting ----------
+// A silent JS error used to just leave the screen blank forever with no clue
+// why. This surfaces anything unexpected on-screen so it can be screenshotted
+// and reported, instead of looking identical to "still loading".
+function showCrash(msg) {
+  const el = document.getElementById('crash-banner');
+  if (!el) return;
+  el.style.display = 'block';
+  el.textContent += (el.textContent ? '\n\n' : '') + msg;
+}
+window.addEventListener('error', (e) => {
+  showCrash('Erreur: ' + (e.message || e) + (e.filename ? (' (' + e.filename + ':' + e.lineno + ')') : ''));
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason;
+  showCrash('Erreur (promesse): ' + (r && (r.code || r.message) || r));
+});
+
 let currentLang = 'fr';
 function t(fr, ar) { return currentLang === 'ar' ? ar : fr; }
 
@@ -526,18 +551,25 @@ async function init() {
         if (gotShopData || slug !== requestSlug) return; // listener caught up meanwhile
         gotShopData = true;
         applyShopDoc(snap);
-      }).catch(() => {
-        if (!gotShopData && slug === requestSlug) showLoadError();
+      }).catch((err) => {
+        if (!gotShopData && slug === requestSlug) {
+          showLoadError();
+          showCrash('Shop load failed: ' + (err && (err.code || err.message) || err));
+        }
       });
     }
 
     unsubscribeShop = onSnapshot(doc(db, 'shops', uid), (snap) => {
       gotShopData = true;
       applyShopDoc(snap);
-    }, () => { if (!gotShopData) fetchShopDocOnce(); }); // onSnapshot's own error callback
+    }, (err) => {
+      showCrash('Shop listener error: ' + (err && (err.code || err.message) || err));
+      if (!gotShopData) fetchShopDocOnce();
+    });
     setTimeout(() => { if (!gotShopData) fetchShopDocOnce(); }, 4000);
   } catch (e) {
     showLoadError();
+    showCrash('init() failed: ' + (e && e.message || e));
   }
 }
 
@@ -615,6 +647,8 @@ window.openShop = function (newSlug) {
 };
 
 function applyShopsSnapshot(snap) {
+  document.getElementById('dir-loading').style.display = 'none';
+  document.getElementById('dir-error').style.display = 'none';
   allShops = [];
   snap.forEach((docSnap) => {
     const d = docSnap.data();
@@ -630,6 +664,8 @@ function applyShopsSnapshot(snap) {
 }
 
 function loadDirectoryList() {
+  document.getElementById('dir-error').style.display = 'none';
+  document.getElementById('dir-loading').style.display = 'block';
   // Admin + rules are live now: a shop explicitly locked (active === false,
   // set on new signups until the owner pays) is kept out of the public
   // directory. A shop with no `active` field at all (created before this
@@ -646,17 +682,28 @@ function loadDirectoryList() {
   unsubscribeDirectory = onSnapshot(
     collection(db, 'shops'),
     (snap) => { gotData = true; applyShopsSnapshot(snap); },
-    () => { if (!gotData) fetchShopsOnce(); } // listener errored out — fall back immediately
+    (err) => {
+      showCrash('Directory listener error: ' + (err && (err.code || err.message) || err));
+      if (!gotData) fetchShopsOnce();
+    }
   );
   setTimeout(() => {
     if (!gotData) fetchShopsOnce();
   }, 4000);
 }
 
+window.loadDirectoryList = loadDirectoryList;
+
 function fetchShopsOnce() {
   getDocs(collection(db, 'shops'))
     .then((snap) => applyShopsSnapshot(snap))
-    .catch(() => {}); // still nothing we can do without any connection at all
+    .catch((err) => {
+      // Both the live listener AND this plain fetch failed — show something
+      // instead of leaving the screen looking exactly like it's still loading.
+      document.getElementById('dir-loading').style.display = 'none';
+      document.getElementById('dir-error').style.display = 'block';
+      showCrash('Directory load failed: ' + (err && err.code || err && err.message || err));
+    });
 }
 
 function haversineKm(lat1, lng1, lat2, lng2) {
