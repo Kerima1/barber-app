@@ -375,7 +375,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, getDocFromServer, onSnapshot, runTransaction, enableIndexedDbPersistence,
+  getFirestore, doc, getDoc, getDocFromServer, getDocs, onSnapshot, runTransaction, enableIndexedDbPersistence,
   collection, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -586,25 +586,49 @@ window.openShop = function (newSlug) {
   init();
 };
 
+function applyShopsSnapshot(snap) {
+  allShops = [];
+  snap.forEach((docSnap) => {
+    const d = docSnap.data();
+    if (!d.slug) return;
+    if (d.active === false) return;
+    allShops.push({
+      uid: docSnap.id, slug: d.slug, name: d.name || '', phone: d.phone || '',
+      logoUrl: d.logoUrl || null, waiting: (d.waiting || []).length, lat: d.lat, lng: d.lng
+    });
+  });
+  renderDirectoryList();
+  if (mapInstance) renderMapMarkers();
+}
+
 function loadDirectoryList() {
   // Admin + rules are live now: a shop explicitly locked (active === false,
   // set on new signups until the owner pays) is kept out of the public
   // directory. A shop with no `active` field at all (created before this
   // feature existed) is still shown, same as it still works for customers.
-  unsubscribeDirectory = onSnapshot(collection(db, 'shops'), (snap) => {
-    allShops = [];
-    snap.forEach((docSnap) => {
-      const d = docSnap.data();
-      if (!d.slug) return;
-      if (d.active === false) return;
-      allShops.push({
-        uid: docSnap.id, slug: d.slug, name: d.name || '', phone: d.phone || '',
-        logoUrl: d.logoUrl || null, waiting: (d.waiting || []).length, lat: d.lat, lng: d.lng
-      });
-    });
-    renderDirectoryList();
-    if (mapInstance) renderMapMarkers();
-  });
+  //
+  // Some mobile networks allow normal web browsing but are flaky with
+  // Firestore's own realtime connection (it's a long-lived streaming
+  // channel, different from an ordinary page load) — the listener can just
+  // never fire, with no visible error, leaving the directory silently
+  // empty forever even with real internet. gotData guards against that: if
+  // nothing has arrived after a few seconds, fall back to a single plain
+  // fetch instead of leaving the screen blank.
+  let gotData = false;
+  unsubscribeDirectory = onSnapshot(
+    collection(db, 'shops'),
+    (snap) => { gotData = true; applyShopsSnapshot(snap); },
+    () => { if (!gotData) fetchShopsOnce(); } // listener errored out — fall back immediately
+  );
+  setTimeout(() => {
+    if (!gotData) fetchShopsOnce();
+  }, 4000);
+}
+
+function fetchShopsOnce() {
+  getDocs(collection(db, 'shops'))
+    .then((snap) => applyShopsSnapshot(snap))
+    .catch(() => {}); // still nothing we can do without any connection at all
 }
 
 function haversineKm(lat1, lng1, lat2, lng2) {
