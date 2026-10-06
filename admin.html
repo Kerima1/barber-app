@@ -356,9 +356,11 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById('auth-view').classList.remove('hidden');
     return;
   }
-  // confirmed signed in — now check this is actually the admin
-  const adminSnap = await getDoc(doc(db, 'admins', user.uid));
-  if (!adminSnap.exists()) {
+  // confirmed signed in — now check this is actually the admin, by email,
+  // not by a separate Firestore document (simpler: nothing to set up by
+  // hand in the Firestore console beyond creating this one login).
+  const ADMIN_EMAIL = 'fatimetousidiboba@gmail.com';
+  if ((user.email || '').toLowerCase() !== ADMIN_EMAIL) {
     document.getElementById('auth-view').classList.add('hidden');
     document.getElementById('admin-view').classList.add('hidden');
     document.getElementById('unauthorized').classList.remove('hidden');
