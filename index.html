@@ -315,7 +315,8 @@
       <button class="btn-ghost" style="margin-top:8px;" onclick="downloadQr()" data-fr="Télécharger le QR code" data-ar="تحميل رمز QR">Télécharger le QR code</button>
     </div>
 
-    <button class="btn-ghost" style="color:var(--danger); border-color:var(--danger);" onclick="doSignOut()" data-fr="Se déconnecter" data-ar="تسجيل الخروج">Se déconnecter</button>
+    <button class="btn-ghost" onclick="askConfirm('password', null)" id="change-password-btn" data-fr="🔑 Changer mon mot de passe" data-ar="🔑 تغيير كلمة المرور">🔑 Changer mon mot de passe</button>
+    <button class="btn-ghost" style="color:var(--danger); border-color:var(--danger); margin-top:8px;" onclick="doSignOut()" data-fr="Se déconnecter" data-ar="تسجيل الخروج">Se déconnecter</button>
   </div>
 </div>
 
@@ -881,6 +882,16 @@ window.askConfirm = function (action, payload) {
     document.getElementById('modal-overlay').classList.add('show');
     return;
   }
+  if (action === 'password') {
+    document.getElementById('modal-num').textContent = '🔑';
+    document.getElementById('modal-msg').textContent = t(
+      'Recevoir un lien par e-mail pour changer votre mot de passe ?',
+      'هل تريد استلام رابط عبر البريد الإلكتروني لتغيير كلمة المرور؟'
+    );
+    document.getElementById('modal-confirm-btn').classList.remove('danger');
+    document.getElementById('modal-overlay').classList.add('show');
+    return;
+  }
   const num = action === 'recall' ? payload : shopData.chairs[payload];
   document.getElementById('modal-num').textContent = '#' + num;
   const messages = {
@@ -919,6 +930,25 @@ window.confirmModal = async function () {
   closeModal();
 };
 
+function runChangePassword() {
+  return new Promise((resolve) => {
+    const email = (auth.currentUser && auth.currentUser.email) || (shopData && shopData.email) || '';
+    if (!email) {
+      alert(t('Aucun e-mail associé à ce compte.', 'لا يوجد بريد إلكتروني مرتبط بهذا الحساب.'));
+      resolve();
+      return;
+    }
+    sendPasswordResetEmail(auth, email)
+      .then(() => {
+        alert(t('Un e-mail a été envoyé à ' + email + ' pour changer votre mot de passe.', 'تم إرسال بريد إلكتروني إلى ' + email + ' لتغيير كلمة المرور.'));
+      })
+      .catch(() => {
+        alert(t('Impossible d’envoyer l’e-mail pour le moment. Réessayez plus tard.', 'تعذر إرسال البريد الإلكتروني حاليًا. حاول مرة أخرى لاحقًا.'));
+      })
+      .finally(resolve);
+  });
+}
+
 window.askResetQueue = function () {
   pendingAction = { action: 'reset' };
   document.getElementById('modal-num').textContent = t('Nouvelle journée','يوم جديد');
@@ -942,6 +972,9 @@ window.confirmModal = async function () {
       closeModal();
     } else if (pendingAction.action === 'location') {
       await runSaveShopLocation();
+      closeModal();
+    } else if (pendingAction.action === 'password') {
+      await runChangePassword();
       closeModal();
     } else {
       await origConfirmModal();
