@@ -48,6 +48,11 @@
     background: var(--surface-2); color: var(--text); font-size: 14px; font-family: inherit;
   }
   input:focus { outline: none; border-color: var(--accent); }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-inline-end: 46px; }
+  .eye-btn { position: absolute; inset-inline-end: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: none; border: none; color: var(--dim); cursor: pointer; border-radius: 8px; }
+  .eye-btn svg { width: 20px; height: 20px; }
+  @media (hover: hover) { .eye-btn:hover { color: var(--text); background: var(--surface); } }
   .btn-primary { width: 100%; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: 14px; font-weight: 700; font-size: 15px; margin-top: 14px; }
   .btn-ghost { width: 100%; padding: 13px; background: var(--surface-2); border: 1.5px solid var(--border); color: var(--text); border-radius: 12px; font-weight: 700; font-size: 13.5px; transition: transform .08s ease; }
   .btn-ghost:active { transform: scale(0.98); background: var(--border); }
@@ -165,11 +170,12 @@
     <input type="email" id="f-email" placeholder="vous@exemple.com">
 
     <label data-fr="Code PIN" data-ar="رمز PIN">Code PIN</label>
-    <input type="password" id="f-pin" placeholder="••••" maxlength="6">
+    <div class="pw-wrap"><input type="password" id="f-pin" placeholder="••••••••" maxlength="64" autocomplete="current-password"><button type="button" class="eye-btn" onclick="togglePw(this)" aria-label="Afficher / إظهار"><svg class="eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19c-6.4 0-10-7-10-7a18.4 18.4 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c6.4 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/><path d="M14.12 14.12A3 3 0 1 1 9.88 9.88"/></svg></button></div>
+    <div id="pin-hint" class="muted hidden" style="font-size:11px; margin-top:5px;" data-fr="Au moins 8 caractères (lettres et chiffres, comme tu veux)." data-ar="8 أحرف على الأقل (حروف وأرقام كما تريد).">Au moins 8 caractères (lettres et chiffres, comme tu veux).</div>
 
     <div id="confirm-wrap" class="hidden">
       <label data-fr="Confirmer le code PIN" data-ar="تأكيد رمز PIN">Confirmer le code PIN</label>
-      <input type="password" id="f-pin2" placeholder="••••" maxlength="6">
+      <div class="pw-wrap"><input type="password" id="f-pin2" placeholder="••••••••" maxlength="64" autocomplete="new-password"><button type="button" class="eye-btn" onclick="togglePw(this)" aria-label="Afficher / إظهار"><svg class="eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19c-6.4 0-10-7-10-7a18.4 18.4 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c6.4 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/><path d="M14.12 14.12A3 3 0 1 1 9.88 9.88"/></svg></button></div>
     </div>
 
     <div class="error" id="auth-error"></div>
@@ -395,6 +401,15 @@ function applyAccentForCurrentTheme() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   document.documentElement.style.setProperty('--accent', isDark ? accentDark : accentLight);
 }
+window.togglePw = function (btn) {
+  const input = btn.parentElement.querySelector('input');
+  const show = input.dataset.shown !== '1';
+  input.dataset.shown = show ? '1' : '';
+  if (input.id === 'f-pass') input.style.webkitTextSecurity = show ? 'none' : 'disc';
+  else input.type = show ? 'text' : 'password';
+  btn.querySelector('.eye-on').style.display = show ? 'none' : '';
+  btn.querySelector('.eye-off').style.display = show ? '' : 'none';
+};
 window.toggleTheme = function () {
   const html = document.documentElement;
   const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -444,6 +459,7 @@ function renderAuthMode() {
     document.getElementById('signup-fields').classList.remove('hidden');
     document.getElementById('login-email-label').classList.add('hidden');
     document.getElementById('confirm-wrap').classList.remove('hidden');
+    document.getElementById('pin-hint').classList.remove('hidden');
     document.getElementById('forgot-link').style.display = 'none';
   } else {
     document.getElementById('auth-title').textContent = t('Connexion', 'تسجيل الدخول');
@@ -451,6 +467,7 @@ function renderAuthMode() {
     document.getElementById('signup-fields').classList.add('hidden');
     document.getElementById('login-email-label').classList.remove('hidden');
     document.getElementById('confirm-wrap').classList.add('hidden');
+    document.getElementById('pin-hint').classList.add('hidden');
     document.getElementById('forgot-link').style.display = 'block';
   }
 }
@@ -468,7 +485,7 @@ window.submitAuth = async function () {
       const pin2 = document.getElementById('f-pin2').value.trim();
       if (!name || !email || !pin) throw new Error(t('Remplis le nom, l\u2019e-mail et un code PIN.', 'يرجى ملء الاسم والبريد الإلكتروني ورمز PIN.'));
       if (pin !== pin2) throw new Error(t('Les deux codes PIN ne correspondent pas.', 'رمزا PIN غير متطابقين.'));
-      if (pin.length < 6) throw new Error(t('Le code PIN doit faire au moins 6 caractères.', 'يجب أن يتكون رمز PIN من 6 أحرف على الأقل.'));
+      if (pin.length < 8) throw new Error(t('Le code PIN doit faire au moins 8 caractères.', 'يجب أن يتكون رمز PIN من 8 أحرف على الأقل.'));
       const cred = await createUserWithEmailAndPassword(auth, email, pin);
       const uid = cred.user.uid;
       const slug = slugify(name);
