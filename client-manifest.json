@@ -1,0 +1,16 @@
+{
+  "name": "Barber",
+  "short_name": "Barber",
+  "description": "Prenez votre numéro dans la file d'attente",
+  "start_url": "./client.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3EEFB",
+  "theme_color": "#7C5CFF",
+  "orientation": "portrait",
+  "lang": "fr",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
