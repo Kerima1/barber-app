@@ -664,8 +664,15 @@ function openMap() {
   requestAnimationFrame(() => {
     if (!mapInstance) {
       mapInstance = L.map(box, { zoomControl: true }).setView(center, 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap',
+      // Real satellite photos (like Google Maps satellite view), free and
+      // with no account or API key needed — Esri's World Imagery service.
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri',
+        maxZoom: 19
+      }).addTo(mapInstance);
+      // A thin transparent layer of street/place names on top of the photo,
+      // so it still reads clearly, the way Google Maps satellite does.
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 19
       }).addTo(mapInstance);
     } else {
@@ -694,7 +701,14 @@ function renderMapMarkers() {
   shopMarkers = [];
   allShops.forEach(s => {
     if (typeof s.lat !== 'number' || typeof s.lng !== 'number') return;
-    const marker = L.marker([s.lat, s.lng]).addTo(mapInstance);
+    // A plain L.marker() uses Leaflet's default image-pin icon, whose image
+    // path breaks when Leaflet is loaded straight from a CDN (the images
+    // just never load — the marker is technically there, just invisible).
+    // A circleMarker is drawn as a vector shape, so it always renders,
+    // regardless of where the page is hosted.
+    const marker = L.circleMarker([s.lat, s.lng], {
+      radius: 10, color: '#fff', weight: 2.5, fillColor: '#C94C3C', fillOpacity: 1
+    }).addTo(mapInstance);
     const safeSlug = (s.slug || '').replace(/'/g, "\\'");
     const dirUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + s.lat + ',' + s.lng;
     marker.bindPopup(
