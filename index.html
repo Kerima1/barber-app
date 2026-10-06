@@ -172,6 +172,23 @@
   </div>
 </div>
 
+<!-- PENDING (account created but not yet activated by the admin) -->
+<div id="pending-view" class="hidden wrap">
+  <img src="icon.svg" alt="Barber" class="login-avatar">
+  <div class="login-head">
+    <h1 data-fr="Compte en attente d'activation" data-ar="الحساب في انتظار التفعيل">Compte en attente d'activation</h1>
+    <p data-fr="Votre compte a été créé. Il sera activé après confirmation du paiement." data-ar="تم إنشاء حسابك. سيتم تفعيله بعد تأكيد الدفع.">Votre compte a été créé. Il sera activé après confirmation du paiement.</p>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div style="font-size:2.4rem; margin-bottom:10px;">⏳</div>
+    <div id="pending-whatsapp-box" class="hidden" style="background:var(--surface-2); border-radius:16px; padding:16px; margin-bottom:16px;">
+      <div style="font-size:12px; color:var(--dim); font-weight:700; margin-bottom:4px;" data-fr="Contactez-nous sur WhatsApp pour activer votre compte" data-ar="تواصل معنا عبر واتساب لتفعيل حسابك">Contactez-nous sur WhatsApp pour activer votre compte</div>
+      <a id="pending-whatsapp-link" href="#" target="_blank" rel="noopener" style="font-size:18px; font-weight:800; color:var(--accent); text-decoration:none;">—</a>
+    </div>
+    <button class="btn-small" style="width:100%;" onclick="doSignOut()" data-fr="Se déconnecter" data-ar="تسجيل الخروج">Se déconnecter</button>
+  </div>
+</div>
+
 <!-- DASHBOARD -->
 <div id="dash-view" class="hidden wrap">
   <div class="hero-row">
@@ -443,6 +460,7 @@ window.submitAuth = async function () {
         name, phone, email, slug, logoUrl: '',
         accentLight: '#7C5CFF', accentDark: '#9C7CFF',
         capacity: 50, nextTicket: 1, waiting: [], chairs: [], missed: [],
+        active: false, // new accounts start locked — admin activates after payment
         createdAt: Date.now()
       });
     } else {
@@ -487,17 +505,41 @@ onAuthStateChanged(auth, (user) => {
   if (user) {
     currentUid = user.uid;
     document.getElementById('auth-view').classList.add('hidden');
-    document.getElementById('dash-view').classList.remove('hidden');
+    // dash-view/pending-view are decided once the shop's own data arrives,
+    // in watchShop below — not here, since we don't know yet if it's active.
     watchShop(user.uid);
   } else {
     currentUid = null;
     if (unsubShop) { unsubShop(); unsubShop = null; }
     document.getElementById('dash-view').classList.add('hidden');
+    document.getElementById('pending-view').classList.add('hidden');
     document.getElementById('auth-view').classList.remove('hidden');
     mode = 'login';
     renderAuthMode();
   }
 });
+
+// WhatsApp number shown on the pending (not-yet-activated) screen, set by
+// the admin panel under settings/contact. Public read, fetched once.
+let whatsappNumber = '';
+getDoc(doc(db, 'settings', 'contact')).then(snap => {
+  if (snap.exists() && snap.data().whatsapp) whatsappNumber = snap.data().whatsapp;
+}).catch(() => {});
+
+function showPendingScreen() {
+  document.getElementById('dash-view').classList.add('hidden');
+  document.getElementById('pending-view').classList.remove('hidden');
+  const box = document.getElementById('pending-whatsapp-box');
+  const link = document.getElementById('pending-whatsapp-link');
+  if (whatsappNumber) {
+    const digits = (whatsappNumber.startsWith('222') ? whatsappNumber : '222' + whatsappNumber).replace(/\D/g, '');
+    link.href = 'https://wa.me/' + digits;
+    link.textContent = whatsappNumber;
+    box.classList.remove('hidden');
+  } else {
+    box.classList.add('hidden');
+  }
+}
 
 // ---------- dashboard ----------
 window.setTab = function (tabName) {
@@ -511,6 +553,17 @@ function watchShop(uid) {
   unsubShop = onSnapshot(doc(db, 'shops', uid), (snap) => {
     if (!snap.exists()) return;
     shopData = snap.data();
+
+    // Only an EXPLICIT false locks the account out — a shop created before
+    // this feature existed has no `active` field at all, and must keep
+    // working exactly as before rather than suddenly getting locked out.
+    if (shopData.active === false) {
+      showPendingScreen();
+      return;
+    }
+    document.getElementById('pending-view').classList.add('hidden');
+    document.getElementById('dash-view').classList.remove('hidden');
+
     accentLight = shopData.accentLight || '#7C5CFF';
     accentDark = shopData.accentDark || '#9C7CFF';
     applyAccentForCurrentTheme();
