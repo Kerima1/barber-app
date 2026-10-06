@@ -458,7 +458,7 @@ function renderAccounts() {
   document.getElementById('stat-pending').textContent = shops.filter(s => !s.active).length;
 
   const q = document.getElementById('acc-search').value.trim().toLowerCase();
-  const filtered = shops.filter(s => !q || s.name.toLowerCase().includes(q) || s.phone.includes(q));
+  const filtered = shops.filter(s => !q || String(s.name || '').toLowerCase().includes(q) || String(s.phone || '').toLowerCase().includes(q));
 
   document.getElementById('accounts-list').innerHTML = filtered.map(s => `
     <div class="account-row">
@@ -592,7 +592,7 @@ function renderPayments() {
   const q = document.getElementById('pay-search').value.trim().toLowerCase();
   const filtered = shops.filter(s => {
     if (showOnlyUnpaid && isPaid(s.id)) return false;
-    return !q || s.name.toLowerCase().includes(q) || s.phone.includes(q);
+    return !q || String(s.name || '').toLowerCase().includes(q) || String(s.phone || '').toLowerCase().includes(q);
   });
 
   const paidCount = shops.filter(s => isPaid(s.id)).length;
@@ -706,7 +706,7 @@ function renderPartners() {
   if (!listEl) return; // tab not in the DOM yet on first call
 
   const q = (document.getElementById('partner-search')?.value || '').trim().toLowerCase();
-  const filtered = partners.filter(p => !q || p.name.toLowerCase().includes(q) || (p.phone || '').includes(q));
+  const filtered = partners.filter(p => !q || String(p.name || '').toLowerCase().includes(q) || String(p.phone || '').toLowerCase().includes(q));
 
   listEl.innerHTML = filtered.map(p => {
     const activeCount = getActiveClientCount(p);
