@@ -722,19 +722,32 @@ window.findNearMe = function () {
   const btn = document.getElementById('dir-near-btn');
   if (!navigator.geolocation) { alert(t('La localisation n’est pas disponible sur cet appareil.', 'تحديد الموقع غير متاح على هذا الجهاز.')); return; }
   btn.disabled = true;
-  navigator.geolocation.getCurrentPosition(
+  // This used to take a single one-shot reading, which on Android is often
+  // the rough wifi/cell-based first fix (hundreds of meters to a few km
+  // off) — exactly why shops right next to each other showed up "2.0 km"
+  // away. Now it keeps listening for a few seconds and keeps only the best
+  // (most accurate) reading, same approach as the map's own location dot.
+  let best = null;
+  let watchId = navigator.geolocation.watchPosition(
     (pos) => {
+      if (best && pos.coords.accuracy >= best.coords.accuracy) return;
+      best = pos;
       myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      myAccuracy = pos.coords.accuracy || null;
       btn.classList.add('active');
-      btn.disabled = false;
       renderDirectoryList();
+      if (mapInstance) renderMapMarkers();
     },
-    () => {
-      btn.disabled = false;
-      alert(t('Impossible d’obtenir votre position — vérifiez les autorisations de localisation.', 'تعذر تحديد موقعك — تحقق من أذونات الموقع.'));
-    },
-    { enableHighAccuracy: true, timeout: 10000 }
+    () => {},
+    { enableHighAccuracy: true, maximumAge: 0 }
   );
+  setTimeout(() => {
+    navigator.geolocation.clearWatch(watchId);
+    btn.disabled = false;
+    if (!best) {
+      alert(t('Impossible d’obtenir votre position — vérifiez les autorisations de localisation.', 'تعذر تحديد موقعك — تحقق من أذونات الموقع.'));
+    }
+  }, 6000);
 };
 
 // ---------- map (shows "my location" as a circle + every shop as a pin) ----------
