@@ -51,6 +51,8 @@
   .btn-primary { width: 100%; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: 14px; font-weight: 700; font-size: 15px; margin-top: 14px; }
   .btn-ghost { width: 100%; padding: 13px; background: var(--surface-2); border: 1.5px solid var(--border); color: var(--text); border-radius: 12px; font-weight: 700; font-size: 13.5px; transition: transform .08s ease; }
   .btn-ghost:active { transform: scale(0.98); background: var(--border); }
+  .btn-ghost:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-ghost:disabled:active { transform: none; background: var(--surface-2); }
   .btn-small { background: transparent; border: 1px solid var(--border); color: var(--dim); border-radius: 8px; padding: 6px 11px; font-size: 11px; font-weight: 700; }
   .error { color: var(--danger); font-size: 13px; margin: 10px 0; display: none; text-align: left; }
   .muted { color: var(--dim); font-size: 12px; }
@@ -210,7 +212,8 @@
       <div class="eyebrow" data-fr="Postes en cours" data-ar="المقاعد النشطة">Postes en cours</div>
       <div id="chairs-box"></div>
       <button class="btn-ghost" onclick="addChair()" data-fr="+ Ajouter un poste" data-ar="+ إضافة مقعد">+ Ajouter un poste</button>
-      <button class="btn-ghost" style="margin-top:8px;" onclick="askConfirm('manual', null)" data-fr="+ Donner un numéro" data-ar="+ إعطاء رقم">+ Donner un numéro</button>
+      <button class="btn-ghost" id="give-manual-btn" style="margin-top:8px;" onclick="askConfirm('manual', null)" data-fr="+ Donner un numéro" data-ar="+ إعطاء رقم">+ Donner un numéro</button>
+      <div class="muted hidden" id="manual-offline-note" style="margin-top:6px; font-size:12px;"></div>
     </div>
     <div class="card hidden" id="manual-list-card">
       <div class="eyebrow" data-fr="Numéros donnés manuellement" data-ar="أرقام أُعطيت يدويًا">Numéros donnés manuellement</div>
@@ -559,9 +562,29 @@ window.setTab = function (tabName) {
   document.getElementById('tab-settings-btn').classList.toggle('active', tabName === 'settings');
 };
 
+// Giving a manual number needs the server (only it knows the next free number),
+// so that button is switched off whenever the app can't reach it.
+let serverConnected = true;
+function isConnected() { return navigator.onLine && serverConnected; }
+function updateConnectionUI() {
+  const btn = document.getElementById('give-manual-btn');
+  const note = document.getElementById('manual-offline-note');
+  if (!btn || !note) return;
+  const offline = !isConnected();
+  btn.disabled = offline;
+  note.classList.toggle('hidden', !offline);
+  note.textContent = t(
+    'Connexion requise pour donner un numéro.',
+    'يلزم الاتصال بالإنترنت لإعطاء رقم.'
+  );
+}
+window.addEventListener('offline', updateConnectionUI);
+window.addEventListener('online', updateConnectionUI);
+
 function watchShop(uid) {
-  unsubShop = onSnapshot(doc(db, 'shops', uid), (snap) => {
+  unsubShop = onSnapshot(doc(db, 'shops', uid), { includeMetadataChanges: true }, (snap) => {
     if (!snap.exists()) return;
+    serverConnected = !snap.metadata.fromCache;
     shopData = snap.data();
 
     // Only an EXPLICIT false locks the account out — a shop created before
@@ -578,6 +601,7 @@ function watchShop(uid) {
     accentDark = shopData.accentDark || '#9C7CFF';
     applyAccentForCurrentTheme();
     renderDashboard();
+    updateConnectionUI();
   });
 }
 
@@ -882,6 +906,7 @@ window.downloadQr = async function () {
 // ---------- confirm modal ----------
 let pendingAction = null;
 window.askConfirm = function (action, payload) {
+  if (action === 'manual' && !isConnected()) { updateConnectionUI(); return; }
   pendingAction = { action, payload };
   if (action === 'manual') {
     document.getElementById('modal-num').textContent = '#' + shopData.nextTicket;
