@@ -54,6 +54,8 @@
   body.ar .card { text-align: right; }
   .eyebrow-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 1.8s ease-in-out infinite; }
+  .skeleton-bar { width: 100%; height: 32px; border-radius: 10px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: skeleton-pulse 1.4s ease infinite; }
+  @keyframes skeleton-pulse { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
   @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(124,92,255,.45); } 50% { box-shadow: 0 0 0 6px rgba(124,92,255,0); } }
   .eyebrow { color: var(--dim); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
 
@@ -232,7 +234,7 @@
 
   <div class="card">
     <div class="eyebrow-row"><div class="live-dot"></div><div class="eyebrow" data-fr="En direct — En cours" data-ar="مباشر — قيد الخدمة">En direct — En cours</div></div>
-    <div class="plaque-row" id="serving-row"></div>
+    <div class="plaque-row" id="serving-row"><div class="skeleton-bar"></div></div>
   </div>
 
   <div class="card" id="missed-card" style="display:none;">
@@ -242,7 +244,7 @@
 
   <div class="card">
     <div class="eyebrow-row"><div class="eyebrow" data-fr="Prochains numéros" data-ar="التالي في الدور">Prochains numéros</div></div>
-    <div class="waiting-nums" id="waiting-row"></div>
+    <div class="waiting-nums" id="waiting-row"><div class="skeleton-bar"></div></div>
     <div class="waiting-count" id="waiting-count"></div>
   </div>
 
@@ -341,7 +343,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, onSnapshot, runTransaction, enableIndexedDbPersistence,
+  getFirestore, doc, getDoc, getDocFromServer, onSnapshot, runTransaction, enableIndexedDbPersistence,
   collection, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -418,6 +420,34 @@ function updateThemeColor() {
   }
   themeColorEl.content = shopData?.accentLight || '#7C5CFF';
 }
+
+// ---------- catch up immediately when the app comes back to the foreground ----------
+// On a phone, a backgrounded tab (or a closed/reopened installed app) gets its
+// network connection frozen by the OS. The live Firestore listener reconnects
+// on its own, but that can take a few seconds — long enough that "you're
+// next" doesn't turn purple right away. Forcing one fresh server read the
+// moment the app becomes visible again fixes that instantly, instead of
+// waiting on the listener's own reconnect timing.
+async function refreshOnResume() {
+  if (!uid || !shopData) return; // directory open, or nothing loaded yet
+  try {
+    const fresh = await getDocFromServer(doc(db, 'shops', uid));
+    if (!fresh.exists()) return;
+    shopData = fresh.data();
+    if (shopData.active === false) { showShopInactive(); return; }
+    document.getElementById('shop-inactive').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    applyAccentForCurrentTheme();
+    updateThemeColor();
+    render();
+  } catch (e) {
+    // offline — the live listener will catch up as soon as it can
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshOnResume();
+});
+window.addEventListener('pageshow', () => refreshOnResume());
 
 async function init() {
   if (!slug) { showDirectory(); return; }
