@@ -1,4 +1,4 @@
-const CACHE = "barber-v22";
+const CACHE = "barber-v23";
 
 self.addEventListener("install", function (e) {
   self.skipWaiting();
@@ -34,16 +34,7 @@ self.addEventListener("fetch", function (e) {
 
   var reqUrl = new URL(url);
 
-  // ---------------------------------------------------------
   // SHOP LOGO
-  // ---------------------------------------------------------
-  //
-  // client.html stores each shop logo here:
-  //
-  // logo-cache/<encoded-shop-slug>.png
-  //
-  // We return the cached logo when Android/iOS asks for it.
-  //
   if (reqUrl.pathname.indexOf("/logo-cache/") >= 0) {
     e.respondWith(
       caches.open("logo-cache").then(function (cache) {
@@ -62,14 +53,7 @@ self.addEventListener("fetch", function (e) {
     return;
   }
 
-  // ---------------------------------------------------------
   // SHOP-SPECIFIC MANIFEST
-  // ---------------------------------------------------------
-  //
-  // Example:
-  //
-  // manifest.json?shop=fatima&name=Fatima%20Beauty&hasLogo=1
-  //
   if (
     reqUrl.pathname.endsWith("manifest.json") &&
     reqUrl.searchParams.has("shop")
@@ -86,9 +70,6 @@ self.addEventListener("fetch", function (e) {
     var icons;
 
     if (hasLogo) {
-      // IMPORTANT:
-      // When the shop has its own logo, do NOT include the
-      // generic Barber icon. Android may otherwise choose it.
       icons = [
         {
           src: logoPath,
@@ -104,13 +85,12 @@ self.addEventListener("fetch", function (e) {
         }
       ];
     } else {
-      // Fallback only when the shop has no uploaded logo.
       icons = [
         {
           src: "icon.svg",
           sizes: "any",
           type: "image/svg+xml",
-          purpose: "any"
+          purpose: "any maskable"
         },
         {
           src: "icon-512.png",
@@ -122,20 +102,28 @@ self.addEventListener("fetch", function (e) {
     }
 
     var manifest = {
-      // IMPORTANT: a real distinct path, not just a different query
-      // string on the same path — this is what actually makes Android
-      // treat each shop as a separate installed app, not merely a
-      // different "id" value on what looks like the same URL.
+      /*
+       * IMPORTANT:
+       * Each shop gets a different PWA identity.
+       * The identity is a real same-origin URL path,
+       * not the client.html?shop=... URL.
+       */
       id: "/barber-shop-" + encodeURIComponent(shop),
 
       name: name,
 
       short_name: name,
 
+      /*
+       * Keep the actual shop page here.
+       */
       start_url:
         "./client.html?shop=" +
         encodeURIComponent(shop),
 
+      /*
+       * Keep the scope of the application.
+       */
       scope: "./",
 
       display: "standalone",
@@ -163,13 +151,7 @@ self.addEventListener("fetch", function (e) {
     return;
   }
 
-  // ---------------------------------------------------------
   // NORMAL APP REQUESTS
-  // ---------------------------------------------------------
-  //
-  // Network first.
-  // If there is no internet, use the cached version.
-  //
   e.respondWith(
     fetch(e.request)
       .then(function (response) {
