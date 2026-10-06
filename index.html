@@ -679,26 +679,33 @@ window.saveShopLocation = function () {
     alert(t('La localisation n’est pas disponible sur cet appareil.', 'تحديد الموقع غير متاح على هذا الجهاز.'));
     return;
   }
-  const btn = document.getElementById('location-btn');
-  btn.disabled = true;
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      try {
-        await updateDoc(doc(db, 'shops', currentUid), {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude
-        });
-      } finally {
-        btn.disabled = false;
-      }
-    },
-    () => {
-      btn.disabled = false;
-      alert(t('Impossible d’obtenir votre position — vérifiez les autorisations de localisation de ce navigateur.', 'تعذر تحديد موقعك — تحقق من أذونات الموقع لهذا المتصفح.'));
-    },
-    { enableHighAccuracy: true, timeout: 10000 }
-  );
+  askConfirm('location', null);
 };
+function runSaveShopLocation() {
+  return new Promise((resolve) => {
+    const btn = document.getElementById('location-btn');
+    btn.disabled = true;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await updateDoc(doc(db, 'shops', currentUid), {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          });
+        } finally {
+          btn.disabled = false;
+          resolve();
+        }
+      },
+      () => {
+        btn.disabled = false;
+        alert(t('Impossible d’obtenir votre position — vérifiez les autorisations de localisation de ce navigateur.', 'تعذر تحديد موقعك — تحقق من أذونات الموقع لهذا المتصفح.'));
+        resolve();
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+}
 
 window.editCapacity = function () {
   const box = document.getElementById('capacity-edit');
@@ -814,6 +821,13 @@ window.askConfirm = function (action, payload) {
     document.getElementById('modal-overlay').classList.add('show');
     return;
   }
+  if (action === 'location') {
+    document.getElementById('modal-num').textContent = '📍';
+    document.getElementById('modal-msg').textContent = t('Enregistrer votre position actuelle comme emplacement du salon ? Ne le faites que si vous êtes bien au salon maintenant.', 'هل تريد حفظ موقعك الحالي كموقع للصالون؟ قم بذلك فقط إذا كنت داخل الصالون الآن.');
+    document.getElementById('modal-confirm-btn').classList.remove('danger');
+    document.getElementById('modal-overlay').classList.add('show');
+    return;
+  }
   const num = action === 'recall' ? payload : shopData.chairs[payload];
   document.getElementById('modal-num').textContent = '#' + num;
   const messages = {
@@ -872,6 +886,9 @@ window.confirmModal = async function () {
       closeModal();
     } else if (pendingAction.action === 'manual') {
       await runGiveManualNumber();
+      closeModal();
+    } else if (pendingAction.action === 'location') {
+      await runSaveShopLocation();
       closeModal();
     } else {
       await origConfirmModal();
