@@ -685,8 +685,13 @@ window.addChair = function () {
 
 async function runGiveManualNumber() {
   const ref = doc(db, 'shops', currentUid);
-  const result = await runTransaction(db, async (tx) => {
+  // Giving up after a while must be REAL, otherwise the request could still
+  // finish later and quietly hand out a number nobody was told about.
+  // `state.cancelled` makes a late request do nothing.
+  const state = { cancelled: false };
+  const txPromise = runTransaction(db, async (tx) => {
     const d = (await tx.get(ref)).data();
+    if (state.cancelled) throw new Error('cancelled');
     const capacity = d.capacity || 50;
     if (d.nextTicket > capacity) return { full: true };
     const n = d.nextTicket;
@@ -695,7 +700,31 @@ async function runGiveManualNumber() {
     tx.update(ref, { nextTicket: n + 1, waiting, manualNumbers });
     return { full: false, number: n };
   });
+  let timer = null;
+  const giveUp = new Promise((_, reject) => {
+    timer = setTimeout(() => { state.cancelled = true; reject(new Error('timeout')); }, 10000);
+  });
+  let result;
+  try {
+    result = await Promise.race([txPromise, giveUp]);
+  } catch (err) {
+    // If it went through at the very last moment anyway, still show the number.
+    txPromise.then((r) => { if (r && !r.full) showManualResult(r); }).catch(() => {});
+    document.getElementById('manual-modal-label').textContent = t('Pas de connexion', 'لا يوجد اتصال');
+    document.getElementById('manual-modal-num').textContent = '✕';
+    document.getElementById('manual-modal-msg').textContent = t(
+      'Aucun numéro n\u2019a été donné. Réessayez quand la connexion revient.',
+      'لم يتم إعطاء أي رقم. حاول مجددًا عند عودة الاتصال.'
+    );
+    document.getElementById('manual-modal-overlay').classList.add('show');
+    return;
+  } finally {
+    clearTimeout(timer);
+  }
+  showManualResult(result);
+}
 
+function showManualResult(result) {
   if (result.full) {
     document.getElementById('manual-modal-label').textContent = t('File complète', 'الطابور ممتلئ');
     document.getElementById('manual-modal-num').textContent = '✕';
