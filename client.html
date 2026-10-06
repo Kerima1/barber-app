@@ -655,17 +655,29 @@ function openMap() {
   const center = myCoords ? [myCoords.lat, myCoords.lng]
     : (allShops.find(s => typeof s.lat === 'number') ? [allShops.find(s => typeof s.lat === 'number').lat, allShops.find(s => typeof s.lat === 'number').lng] : [18.0858, -15.9785]); // fallback: Nouakchott
 
-  if (!mapInstance) {
-    mapInstance = L.map(box, { zoomControl: true }).setView(center, 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap',
-      maxZoom: 19
-    }).addTo(mapInstance);
-  } else {
+  // Some Android browsers (Samsung Internet in particular) haven't finished
+  // laying out the container the instant display switches from none to
+  // block — Leaflet then measures a 0×0 or stale box and every marker ends
+  // up placed wrong (while the raw lat/lng, e.g. the Google Maps link, is
+  // untouched and still correct). Waiting a frame, then forcing Leaflet to
+  // re-measure (twice, to be safe on slower devices) fixes that.
+  requestAnimationFrame(() => {
+    if (!mapInstance) {
+      mapInstance = L.map(box, { zoomControl: true }).setView(center, 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 19
+      }).addTo(mapInstance);
+    } else {
+      mapInstance.setView(center, mapInstance.getZoom() || 13);
+    }
+    renderMapMarkers();
     mapInstance.invalidateSize();
-    mapInstance.setView(center, mapInstance.getZoom() || 13);
-  }
-  renderMapMarkers();
+    setTimeout(() => {
+      mapInstance.invalidateSize();
+      mapInstance.setView(center, mapInstance.getZoom() || 13);
+    }, 250);
+  });
 }
 
 function renderMapMarkers() {
