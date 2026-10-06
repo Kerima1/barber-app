@@ -568,8 +568,11 @@ window.openShop = function (newSlug) {
 };
 
 function loadDirectoryList() {
-  const q = query(collection(db, 'shops'), where('active', '==', true));
-  unsubscribeDirectory = onSnapshot(q, (snap) => {
+  // NOTE: not filtering by `active` yet — the admin panel and its
+  // Firestore rules (which are what actually set that field) haven't
+  // been deployed yet. Shows every shop with a slug for now; switch
+  // this back to where('active','==',true) once admin is live.
+  unsubscribeDirectory = onSnapshot(collection(db, 'shops'), (snap) => {
     allShops = [];
     snap.forEach((docSnap) => {
       const d = docSnap.data();
