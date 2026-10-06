@@ -29,7 +29,7 @@
 
   body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px 16px 50px; transition: background .25s, color .25s; }
   body.ar { font-family: 'Tajawal', sans-serif; }
-  button { cursor: pointer; font-family: inherit; }
+  button { cursor: pointer; font-family: inherit; -webkit-appearance: none; appearance: none; }
   .hidden { display: none !important; }
 
   .topbar { max-width: 420px; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 6px; }
@@ -259,6 +259,13 @@
         <button class="btn-small" onclick="confirmCapacity()">OK</button>
       </div>
       <button class="btn-ghost" style="margin-top:12px;" onclick="askResetQueue()" data-fr="Réinitialiser (nouvelle journée)" data-ar="إعادة ضبط (يوم جديد)">Réinitialiser (nouvelle journée)</button>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow" data-fr="Emplacement du salon" data-ar="موقع الصالون">Emplacement du salon</div>
+      <div id="location-status" style="font-size:13px; color:var(--dim); margin-bottom:10px;" data-fr="Non enregistré — nécessaire pour apparaître dans l'annuaire" data-ar="غير مسجَّل — ضروري للظهور في الدليل">Non enregistré — nécessaire pour apparaître dans l'annuaire</div>
+      <button class="btn-small" onclick="saveShopLocation()" id="location-btn" data-fr="📍 Enregistrer ma position actuelle" data-ar="📍 حفظ موقعي الحالي">📍 Enregistrer ma position actuelle</button>
+      <div style="font-size:11.5px; color:var(--dim); margin-top:8px; line-height:1.5;" data-fr="À faire une fois, depuis le salon lui-même." data-ar="يتم مرة واحدة فقط، من داخل الصالون نفسه.">À faire une fois, depuis le salon lui-même.</div>
     </div>
 
     <div class="card">
@@ -555,6 +562,15 @@ function renderDashboard() {
   document.getElementById('capacity-text').textContent = (shopData.nextTicket - 1) + ' / ' + (shopData.capacity || 50);
   document.getElementById('panel-capacity-text').textContent = (shopData.nextTicket - 1) + ' / ' + (shopData.capacity || 50);
 
+  const locStatusEl = document.getElementById('location-status');
+  if (typeof shopData.lat === 'number' && typeof shopData.lng === 'number') {
+    locStatusEl.textContent = t('Enregistré ✓ — visible dans l’annuaire', 'مسجَّل ✓ — ظاهر في الدليل');
+    locStatusEl.style.color = 'var(--good, #16A34A)';
+  } else {
+    locStatusEl.textContent = t('Non enregistré — nécessaire pour apparaître dans l’annuaire', 'غير مسجَّل — ضروري للظهور في الدليل');
+    locStatusEl.style.color = 'var(--dim)';
+  }
+
   document.getElementById('light-select-swatch').style.background = accentLight;
   document.getElementById('light-select-label').textContent = accentLight.toUpperCase();
   document.getElementById('dark-select-swatch').style.background = accentDark;
@@ -656,6 +672,32 @@ window.saveSettings = async function () {
   });
   document.getElementById('shop-info-edit').classList.add('hidden');
   document.getElementById('shop-info-view').classList.remove('hidden');
+};
+
+window.saveShopLocation = function () {
+  if (!navigator.geolocation) {
+    alert(t('La localisation n’est pas disponible sur cet appareil.', 'تحديد الموقع غير متاح على هذا الجهاز.'));
+    return;
+  }
+  const btn = document.getElementById('location-btn');
+  btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      try {
+        await updateDoc(doc(db, 'shops', currentUid), {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        });
+      } finally {
+        btn.disabled = false;
+      }
+    },
+    () => {
+      btn.disabled = false;
+      alert(t('Impossible d’obtenir votre position — vérifiez les autorisations de localisation de ce navigateur.', 'تعذر تحديد موقعك — تحقق من أذونات الموقع لهذا المتصفح.'));
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 };
 
 window.editCapacity = function () {
