@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Admin — Kerima Apps</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Admin Barber">
+<meta name="theme-color" content="#7C5CFF">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;900&display=swap');
 
@@ -452,6 +458,11 @@ const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','A
 const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 
 // ---------- accounts tab ----------
+// Exposed on window because this file is a module — a plain top-level
+// `function` is NOT reachable from an inline oninput="…" HTML attribute
+// (those run in global/window scope). This is why the search boxes looked
+// completely dead: the call itself was silently failing.
+window.renderAccounts = renderAccounts;
 function renderAccounts() {
   document.getElementById('stat-all').textContent = shops.length;
   document.getElementById('stat-active').textContent = shops.filter(s => s.active).length;
@@ -588,6 +599,7 @@ window.confirmBulkPaid = function () {
   });
 };
 
+window.renderPayments = renderPayments;
 function renderPayments() {
   const q = document.getElementById('pay-search').value.trim().toLowerCase();
   const filtered = shops.filter(s => {
@@ -698,6 +710,7 @@ window.removeShopFromPartner = function (partnerId, shopId) {
   });
 };
 
+window.renderPartners = renderPartners;
 function renderPartners() {
   const priceEl = document.getElementById('partner-price-val');
   if (priceEl) priceEl.textContent = partnerPrice;
