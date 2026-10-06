@@ -1239,7 +1239,8 @@ function render() {
   document.getElementById('missed-card').style.display = missed.length ? 'block' : 'none';
   document.getElementById('missed-row').innerHTML = missed.map(n => `<div class="missed-chip"><div class="num">${n}</div></div>`).join('');
 
-  const waiting = shopData.waiting || [];
+  // Ticket numbers only ever go up, so the queue order is just ascending order.
+  const waiting = [...(shopData.waiting || [])].sort((a, b) => a - b);
   const shown = waiting.slice(0, 6);
   const extra = waiting.length - shown.length;
   document.getElementById('waiting-row').innerHTML =
