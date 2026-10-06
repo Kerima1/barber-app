@@ -377,6 +377,13 @@ function setPerShopManifest(name, logoUrl, hasCachedLogo) {
     : 'apple-touch-icon.png';
 }
 
+// Create the manifest immediately using only the slug from the URL —
+// available synchronously, no network needed — so a real per-shop
+// manifest exists from the very first instant, not only after Firestore
+// has finished loading (which took two separate round-trips: one for the
+// slug lookup, one for the shop data itself).
+setPerShopManifest(null, null, false);
+
 async function init() {
   if (!slug) { showNotFound(); return; }
   document.getElementById('load-error').style.display = 'none';
