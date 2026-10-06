@@ -720,48 +720,84 @@ function haversineKm(lat1, lng1, lat2, lng2) {
 
 window.findNearMe = function () {
   const btn = document.getElementById('dir-near-btn');
-  if (!navigator.geolocation) { alert(t('La localisation n’est pas disponible sur cet appareil.', 'تحديد الموقع غير متاح على هذا الجهاز.')); return; }
-  btn.disabled = true;
+  if (!navigator.geolocation) {
+    alert(t('La localisation n’est pas disponible sur cet appareil.', 'تحديد الموقع غير متاح على هذا الجهاز.'));
+    return;
+  }
 
-  // Keep listening for a real GPS fix on Android. Do not show an alert just
-  // because the first readings are coarse; Android often needs more time.
+  // IMPORTANT: never leave this button disabled when Android refuses, times out,
+  // or delays the GPS fix. The old code disabled it immediately and the empty
+  // error callback could leave it apparently unclickable.
+  btn.disabled = false;
+  btn.classList.remove('active');
+
   let best = null;
-  let watchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      const accuracy = Number(pos.coords.accuracy);
-      if (!Number.isFinite(accuracy)) return;
+  let finished = false;
+  let watchId = null;
 
-      // Ignore very coarse network/cell locations. Accept up to 150 m so
-      // devices that cannot immediately report <100 m are still usable.
-      if (accuracy > 150) return;
-      if (best && accuracy >= best.coords.accuracy) return;
-
-      best = pos;
-      myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      myAccuracy = accuracy;
-      btn.classList.add('active');
-      renderDirectoryList();
-      if (mapInstance) renderMapMarkers();
-
-      // Keep a good GPS fix, but allow a later, even better reading to update it.
-      if (accuracy <= 50 && watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-        btn.disabled = false;
-      }
-    },
-    () => {},
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
-  );
-
-  // Give Android enough time to obtain GPS. If no sufficiently accurate fix
-  // arrives, simply stop waiting — do not show a misleading error popup.
-  setTimeout(() => {
+  const finish = () => {
+    if (finished) return;
+    finished = true;
     if (watchId !== null) {
       navigator.geolocation.clearWatch(watchId);
       watchId = null;
     }
     btn.disabled = false;
+  };
+
+  const onError = (err) => {
+    finish();
+    if (!best) {
+      let msg = t(
+        'Impossible d’obtenir votre position. Vérifiez que la localisation est autorisée pour ce site et que la localisation précise est activée, puis réessayez.',
+        'تعذّر الحصول على موقعك. تأكدي من السماح للموقع لهذا الموقع وتفعيل الموقع الدقيق، ثم حاولي مرة أخرى.'
+      );
+      if (err && err.code === 1) msg = t(
+        'L’accès à la localisation est refusé. Autorisez la localisation pour ce site, puis réessayez.',
+        'تم رفض الوصول إلى الموقع. اسمحي بالوصول إلى الموقع لهذا الموقع، ثم حاولي مرة أخرى.'
+      );
+      alert(msg);
+    }
+  };
+
+  try {
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const accuracy = Number(pos.coords.accuracy);
+        if (!Number.isFinite(accuracy)) return;
+
+        // Do not use a very coarse Android network/cell estimate for sorting.
+        if (accuracy > 150) return;
+        if (best && accuracy >= best.coords.accuracy) return;
+
+        best = pos;
+        myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        myAccuracy = accuracy;
+        btn.classList.add('active');
+        renderDirectoryList();
+        if (mapInstance) renderMapMarkers();
+
+        // Once Android gives us a reasonably precise fix, stop watching.
+        if (accuracy <= 50) finish();
+      },
+      onError,
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+    );
+  } catch (e) {
+    finish();
+    alert(t(
+      'Impossible de démarrer la localisation. Vérifiez les autorisations de localisation et réessayez.',
+      'تعذّر تشغيل تحديد الموقع. تحققي من أذونات الموقع ثم حاولي مرة أخرى.'
+    ));
+    return;
+  }
+
+  // Never make the button permanently unusable. Android may need time for GPS.
+  setTimeout(() => {
+    if (!finished) {
+      if (!best) onError({ code: 3 });
+      else finish();
+    }
   }, 30000);
 };
 
