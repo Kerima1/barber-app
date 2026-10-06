@@ -1359,37 +1359,70 @@ window.confirmTakeNumber = async function () {
   takingNumber = true;
   const confirmBtn = document.getElementById('ask-num-confirm-btn');
   confirmBtn.disabled = true;
-  // On a weak connection the request can take a while. Don't give up on it (it
-  // could still go through and quietly take a number) — just tell the person.
+  // Weak connection: tell the person after a few seconds, and give up after a
+  // while. Giving up must be REAL — otherwise the request could still finish
+  // minutes later and quietly put a ticket in the queue that the person never
+  // saw. `state.cancelled` makes a late request do nothing.
+  const state = { cancelled: false };
+  const ticketKey = storageKey;
   const slowTimer = setTimeout(() => showToast(t(
     'Connexion lente… veuillez patienter.',
     'الاتصال بطيء… يرجى الانتظار.'
-  )), 8000);
+  )), 6000);
+  let giveUpTimer = null;
   try {
     const ref = doc(db, 'shops', uid);
-    const newTicket = await runTransaction(db, async (tx) => {
+    const txPromise = runTransaction(db, async (tx) => {
       const d = (await tx.get(ref)).data();
+      if (state.cancelled) throw new Error('cancelled'); // we already gave up — take nothing
       const n = d.nextTicket;
       const waiting = [...(d.waiting || []), n];
       tx.update(ref, { nextTicket: n + 1, waiting });
       return n;
     });
+    const giveUp = new Promise((_, reject) => {
+      giveUpTimer = setTimeout(() => { state.cancelled = true; reject(new Error('timeout')); }, 12000);
+    });
+    let newTicket;
+    try {
+      newTicket = await Promise.race([txPromise, giveUp]);
+    } catch (err) {
+      if (err && err.message === 'timeout') {
+        // If it went through at the very last moment anyway, keep that ticket.
+        txPromise.then((n) => {
+          localStorage.setItem(ticketKey, String(n));
+          if (storageKey === ticketKey) { myTicket = n; closeAskNum(); showTicketTaken(n); if (shopData) render(); }
+        }).catch(() => {});
+        closeAskNum();
+        showToast(t(
+          'Connexion perdue — aucun numéro n’a été pris. Réessayez quand la connexion revient.',
+          'انقطع الاتصال — لم يتم أخذ أي رقم. حاول مجددًا عند عودة الاتصال.'
+        ), 6000);
+        return;
+      }
+      throw err;
+    }
+    hideToast();
     myTicket = newTicket;
-    localStorage.setItem(storageKey, String(newTicket));
+    localStorage.setItem(ticketKey, String(newTicket));
     closeAskNum();
-    // The actual confirmed number — may occasionally differ from the
-    // preview shown a moment ago, if someone else took one in between.
-    document.getElementById('confirm-num-value').textContent = '#' + newTicket;
-    document.getElementById('confirm-num-overlay').classList.add('show');
+    showTicketTaken(newTicket);
   } catch (e) {
-    alert(t('Une erreur est survenue — réessayez.', 'حدث خطأ — حاول مرة أخرى.'));
+    closeAskNum();
+    showToast(t('Une erreur est survenue — réessayez.', 'حدث خطأ — حاول مرة أخرى.'), 5000);
   } finally {
     clearTimeout(slowTimer);
-    hideToast();
+    clearTimeout(giveUpTimer);
     takingNumber = false;
     confirmBtn.disabled = false;
   }
 };
+// The actual confirmed number — may occasionally differ from the preview shown
+// a moment ago, if someone else took one in between.
+function showTicketTaken(n) {
+  document.getElementById('confirm-num-value').textContent = '#' + n;
+  document.getElementById('confirm-num-overlay').classList.add('show');
+}
 window.closeConfirmNum = function () {
   document.getElementById('confirm-num-overlay').classList.remove('show');
 };
