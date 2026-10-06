@@ -77,6 +77,7 @@
   .price-row .p-value { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; }
   .price-row .p-value span { font-size: 11px; color: var(--dim); font-weight: 600; }
   .edit-price-btn { font-size: 11.5px; font-weight: 700; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; padding: 7px 12px; }
+  .btn-small { font-size: 11.5px; font-weight: 700; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
 
   .progress-bar { height: 8px; border-radius: 6px; background: var(--surface-2); overflow: hidden; margin: 10px 0 6px; }
   .progress-fill { height: 100%; background: var(--good); border-radius: 6px; transition: width .3s; }
@@ -159,6 +160,7 @@
   <div class="tabs">
     <button class="active" onclick="setTab('accounts')" id="tab-accounts-btn" data-fr="Salons" data-ar="الصالونات">Salons</button>
     <button onclick="setTab('payments')" id="tab-payments-btn" data-fr="Paiements" data-ar="المدفوعات">Paiements</button>
+    <button onclick="setTab('partners')" id="tab-partners-btn" data-fr="Partenaires" data-ar="الشركاء">Partenaires</button>
     <button onclick="setTab('settings')" id="tab-settings-btn" data-fr="Réglages" data-ar="الإعدادات">Réglages</button>
   </div>
 
@@ -213,6 +215,28 @@
     <div id="payments-list"></div>
   </div>
 
+  <!-- PARTNERS TAB (referral partners earning a commission per active shop they brought in) -->
+  <div id="tab-partners" style="display:none;">
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:0;" data-fr="Commission / salon actif" data-ar="العمولة / صالون نشط">Commission / salon actif</div>
+      <div class="price-row">
+        <div class="p-value"><span id="partner-price-val">0</span> <span data-fr="MRU" data-ar="أوقية">MRU</span></div>
+        <button class="edit-price-btn" onclick="editPartnerPrice()" data-fr="✎ Modifier" data-ar="✎ تعديل">✎ Modifier</button>
+      </div>
+      <div class="month-nav" style="margin-top:16px;">
+        <button onclick="changeMonth(-1)">‹</button>
+        <div class="m-label" id="partners-month-label">—</div>
+        <button onclick="changeMonth(1)">›</button>
+      </div>
+    </div>
+
+    <div class="search-row">
+      <input type="text" id="partner-search" placeholder="Rechercher…" oninput="renderPartners()">
+      <button class="icon-btn" onclick="addPartner()" title="Nouveau partenaire">➕</button>
+    </div>
+    <div id="partners-list"></div>
+  </div>
+
   <!-- SETTINGS TAB -->
   <div id="tab-settings" style="display:none;">
     <div class="card">
@@ -226,11 +250,7 @@
       <div class="eyebrow" data-fr="Verrouillage automatique" data-ar="القفل التلقائي">Verrouillage automatique</div>
       <label data-fr="Désactiver automatiquement un salon non payé après le jour choisi du mois" data-ar="تعطيل الصالون تلقائيًا إذا لم يدفع بعد اليوم المحدد من الشهر">Désactiver automatiquement un salon non payé après le jour choisi du mois</label>
       <select id="lock-day-select" onchange="saveLockDay()">
-        <option value="">Désactivé</option>
-        <option value="5">Jour 5</option>
-        <option value="10">Jour 10</option>
-        <option value="15">Jour 15</option>
-        <option value="20">Jour 20</option>
+        <option value="" data-fr="Désactivé" data-ar="معطّل">Désactivé</option>
       </select>
     </div>
   </div>
@@ -300,7 +320,7 @@ window.setLang = function (lang) {
 };
 
 window.setTab = function (tabName) {
-  ['accounts', 'payments', 'settings'].forEach(name => {
+  ['accounts', 'payments', 'partners', 'settings'].forEach(name => {
     document.getElementById('tab-' + name).style.display = name === tabName ? 'block' : 'none';
     document.getElementById('tab-' + name + '-btn').classList.toggle('active', name === tabName);
   });
@@ -313,6 +333,12 @@ let autoLockDay = '';
 let payMonth = new Date().getMonth();
 let payYear = new Date().getFullYear();
 let payments = {};       // { "2026-9": { uid: true } } — loaded per month as you navigate
+let currentMonthPayments = {}; // always tracks THIS real-world month, regardless of which month the Paiements tab is browsing — used only for auto-lock enforcement
+let partners = [];       // [{id, name, phone, clients: [shopUid,...]}]
+let partnerPaid = {};    // { "2026-9": { partnerId: true } }
+let partnerPrice = 0;    // commission (MRU) paid per currently-active shop a partner brought in
+let partnerExpanded = null; // id of the partner card currently showing its assigned shops, or null
+let partnerAssignFor = null; // id of the partner currently picking a shop to assign, or null
 let selecting = false;
 let selected = new Set();
 let currentUid = null;
@@ -344,13 +370,13 @@ window.doLogin = async function () {
 };
 window.doSignOut = () => signOut(auth);
 
-let paymentsUnsub = null, settingsUnsub = null, shopsUnsub = null;
+let paymentsUnsub = null, settingsUnsub = null, shopsUnsub = null, partnersUnsub = null;
 
 onAuthStateChanged(auth, async (user) => {
   document.getElementById('loading').classList.add('hidden');
   if (!user) {
     currentUid = null;
-    [paymentsUnsub, settingsUnsub, shopsUnsub].forEach(u => u && u());
+    [paymentsUnsub, settingsUnsub, shopsUnsub, currentMonthPaymentsUnsub, partnersUnsub].forEach(u => u && u());
     document.getElementById('admin-view').classList.add('hidden');
     document.getElementById('unauthorized').classList.add('hidden');
     document.getElementById('auth-view').classList.remove('hidden');
@@ -373,11 +399,16 @@ onAuthStateChanged(auth, async (user) => {
   startListeners();
 });
 
+let currentMonthPaymentsUnsub = null;
 function startListeners() {
+  populateLockDayOptions();
+
   shopsUnsub = onSnapshot(collection(db, 'shops'), (snap) => {
     shops = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderAccounts();
     renderPayments();
+    renderPartners();
+    enforceAutoLock();
   });
 
   settingsUnsub = onSnapshot(doc(db, 'settings', 'billing'), (snap) => {
@@ -387,9 +418,23 @@ function startListeners() {
     document.getElementById('price-val').textContent = monthlyPrice;
     document.getElementById('lock-day-select').value = autoLockDay;
     renderPayments();
+    enforceAutoLock();
   });
   getDoc(doc(db, 'settings', 'contact')).then(snap => {
     document.getElementById('wa-input').value = (snap.data() || {}).whatsapp || '';
+  });
+
+  currentMonthPaymentsUnsub = onSnapshot(doc(db, 'payments', realMonthKey()), (snap) => {
+    currentMonthPayments = snap.data() || {};
+    enforceAutoLock();
+  });
+
+  partnersUnsub = onSnapshot(doc(db, 'payments', 'partners'), (snap) => {
+    const d = snap.data() || {};
+    partners = d.partners || [];
+    partnerPaid = d.partnerPaid || {};
+    partnerPrice = d.partnerPrice || 0;
+    renderPartners();
   });
 
   watchMonth();
@@ -448,6 +493,41 @@ window.resetPin = async function (id) {
 // ---------- payments tab ----------
 function monthKey() { return payYear + '-' + payMonth; }
 function isPaid(id) { return !!(payments[monthKey()] && payments[monthKey()][id]); }
+function realMonthKey() { const n = new Date(); return n.getFullYear() + '-' + n.getMonth(); }
+
+// Fills the auto-lock day dropdown with every day of the month (1–28, so it
+// always applies cleanly whatever month it is), instead of a short fixed list.
+function populateLockDayOptions() {
+  const sel = document.getElementById('lock-day-select');
+  for (let d = 1; d <= 28; d++) {
+    const opt = document.createElement('option');
+    opt.value = String(d);
+    opt.setAttribute('data-fr', 'Jour ' + d);
+    opt.setAttribute('data-ar', 'اليوم ' + d);
+    opt.textContent = currentLang === 'ar' ? ('اليوم ' + d) : ('Jour ' + d);
+    sel.appendChild(opt);
+  }
+}
+
+// Auto-lock enforcement: this used to just sit in Firestore doing nothing —
+// nothing ever read it. Runs whenever shops, the setting, or this month's
+// payments change while the admin panel is open: once today's date reaches
+// the chosen day, any shop that's currently active and hasn't been marked
+// paid for the current month gets locked the exact same way the manual
+// toggle does (active:false) — no separate mechanism. Since this is a
+// static site with no backend, it can only catch up while the panel is
+// actually open, not lock someone out at the exact midnight of that day.
+function enforceAutoLock() {
+  if (!autoLockDay) return;
+  const today = new Date().getDate();
+  if (today < autoLockDay) return;
+  shops.forEach(s => {
+    const paid = !!currentMonthPayments[s.id];
+    if (s.active === true && !paid) {
+      updateDoc(doc(db, 'shops', s.id), { active: false });
+    }
+  });
+}
 
 function renderMonthLabel() {
   const months = currentLang === 'ar' ? MONTHS_AR : MONTHS_FR;
@@ -458,7 +538,13 @@ window.changeMonth = function (delta) {
   if (payMonth < 0) { payMonth = 11; payYear--; }
   if (payMonth > 11) { payMonth = 0; payYear++; }
   renderMonthLabel();
+  const partnersLabel = document.getElementById('partners-month-label');
+  if (partnersLabel) {
+    const months = currentLang === 'ar' ? MONTHS_AR : MONTHS_FR;
+    partnersLabel.textContent = months[payMonth] + ' ' + payYear;
+  }
   watchMonth();
+  renderPartners();
 };
 
 window.editPrice = async function () {
@@ -545,6 +631,136 @@ window.confirmSinglePaid = function (id) {
   );
 };
 
+// ---------- partners tab ----------
+function savePartnersDoc(patch) {
+  return setDoc(doc(db, 'payments', 'partners'), patch, { merge: true });
+}
+function getActiveClientCount(p) {
+  return (p.clients || []).filter(uid => shops.some(s => s.id === uid && s.active === true)).length;
+}
+function partnerDue(p) { return getActiveClientCount(p) * partnerPrice; }
+function isPartnerPaid(id) { return !!(partnerPaid[monthKey()] && partnerPaid[monthKey()][id]); }
+
+window.editPartnerPrice = async function () {
+  const v = prompt(t('Commission par salon actif (MRU) :', 'العمولة لكل صالون نشط (أوقية):'), partnerPrice);
+  if (v !== null && !isNaN(v) && v !== '') await savePartnersDoc({ partnerPrice: Number(v) });
+};
+window.addPartner = async function () {
+  const name = prompt(t('Nom du partenaire :', 'اسم الشريك:'));
+  if (!name || !name.trim()) return;
+  const phone = prompt(t('Téléphone (optionnel) :', 'الهاتف (اختياري):')) || '';
+  const np = [...partners, { id: 'p' + Date.now(), name: name.trim(), phone: phone.trim(), clients: [] }];
+  await savePartnersDoc({ partners: np });
+};
+window.deletePartner = function (id) {
+  const p = partners.find(x => x.id === id);
+  if (!p) return;
+  showModal(t('Supprimer ' + p.name + ' définitivement ?', 'حذف ' + p.name + ' نهائيًا؟'), async () => {
+    await savePartnersDoc({ partners: partners.filter(x => x.id !== id) });
+  });
+};
+window.togglePartnerPaid = function (id) {
+  const p = partners.find(x => x.id === id);
+  if (!p) return;
+  const paid = isPartnerPaid(id);
+  showModal(
+    paid ? t('Marquer comme non payé ?', 'وضع كغير مدفوع؟') : t('Confirmer la réception de la commission de ' + p.name + ' ?', 'تأكيد استلام عمولة ' + p.name + '؟'),
+    async () => {
+      const key = monthKey();
+      const np = { ...partnerPaid, [key]: { ...(partnerPaid[key] || {}), [id]: !paid } };
+      await savePartnersDoc({ partnerPaid: np });
+    }
+  );
+};
+window.togglePartnerExpand = function (id) {
+  partnerExpanded = partnerExpanded === id ? null : id;
+  partnerAssignFor = null;
+  renderPartners();
+};
+window.openAssignPicker = function (id) {
+  partnerAssignFor = id;
+  renderPartners();
+};
+window.closeAssignPicker = function () {
+  partnerAssignFor = null;
+  renderPartners();
+};
+window.assignShopToPartner = async function (partnerId, shopId) {
+  if (!shopId) return;
+  const np = partners.map(p => p.id === partnerId ? { ...p, clients: [...(p.clients || []), shopId] } : p);
+  partnerAssignFor = null;
+  await savePartnersDoc({ partners: np });
+};
+window.removeShopFromPartner = function (partnerId, shopId) {
+  showModal(t('Retirer ce salon de ce partenaire ?', 'إزالة هذا الصالون من هذا الشريك؟'), async () => {
+    const np = partners.map(p => p.id === partnerId ? { ...p, clients: (p.clients || []).filter(c => c !== shopId) } : p);
+    await savePartnersDoc({ partners: np });
+  });
+};
+
+function renderPartners() {
+  const priceEl = document.getElementById('partner-price-val');
+  if (priceEl) priceEl.textContent = partnerPrice;
+
+  const listEl = document.getElementById('partners-list');
+  if (!listEl) return; // tab not in the DOM yet on first call
+
+  const q = (document.getElementById('partner-search')?.value || '').trim().toLowerCase();
+  const filtered = partners.filter(p => !q || p.name.toLowerCase().includes(q) || (p.phone || '').includes(q));
+
+  listEl.innerHTML = filtered.map(p => {
+    const activeCount = getActiveClientCount(p);
+    const due = partnerDue(p);
+    const paid = isPartnerPaid(p.id);
+    const expanded = partnerExpanded === p.id;
+
+    const clientRows = (p.clients || []).map(uid => {
+      const s = shops.find(x => x.id === uid);
+      if (!s) return '';
+      return `<div class="account-row" style="padding:10px 12px;">
+        <div class="ar-main">
+          <div class="ar-name" style="font-size:13px;">${s.name}</div>
+          <div class="ar-meta">${s.active ? t('Actif', 'نشط') : t('En attente', 'قيد الانتظار')}</div>
+        </div>
+        <button class="btn-small" onclick="removeShopFromPartner('${p.id}','${uid}')">✕</button>
+      </div>`;
+    }).join('') || `<div style="text-align:center; color:var(--dim); padding:14px 0; font-size:12.5px;">${t('Aucun salon assigné', 'لا توجد صالونات معيّنة')}</div>`;
+
+    const unassigned = shops.filter(s => !(p.clients || []).includes(s.id));
+    const picker = partnerAssignFor === p.id
+      ? `<div style="padding:10px 0;">
+          <select id="assign-select-${p.id}" style="width:100%; margin-bottom:8px;">
+            ${unassigned.length
+              ? unassigned.map(s => `<option value="${s.id}">${s.name}</option>`).join('')
+              : `<option value="">${t('Aucun salon disponible', 'لا توجد صالونات متاحة')}</option>`}
+          </select>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-primary" style="flex:1; margin-top:0;" onclick="assignShopToPartner('${p.id}', document.getElementById('assign-select-${p.id}').value)">${t('Assigner', 'تعيين')}</button>
+            <button class="btn-small" style="flex:1;" onclick="closeAssignPicker()">${t('Annuler', 'إلغاء')}</button>
+          </div>
+        </div>`
+      : `<button class="btn-small" style="width:100%; margin-top:8px;" onclick="openAssignPicker('${p.id}')">${t('+ Assigner un salon', '+ تعيين صالون')}</button>`;
+
+    return `
+    <div class="account-row" style="flex-direction:column; align-items:stretch; gap:10px;">
+      <div style="display:flex; justify-content:space-between; gap:10px;">
+        <div class="ar-main">
+          <div class="ar-name">${p.name}</div>
+          <div class="ar-meta">${p.phone || ''}</div>
+          <div class="ar-meta">${activeCount} ${t('salon(s) actif(s)', 'صالون نشط')}</div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+          <div class="ar-pay-line ${paid ? 'paid' : 'unpaid'}" style="text-align:right;">${due} MRU</div>
+          <button class="ar-pay-btn ${paid ? 'is-paid' : 'is-unpaid'}" onclick="togglePartnerPaid('${p.id}')">${paid ? '✓ ' + t('Payé', 'مدفوع') : t('Recevoir', 'استلام')}</button>
+        </div>
+      </div>
+      <button class="btn-small" onclick="togglePartnerExpand('${p.id}')">${expanded ? '▲' : '▼'} ${t('Salons', 'الصالونات')} (${(p.clients || []).length})</button>
+      ${expanded ? clientRows + picker : ''}
+      <button onclick="deletePartner('${p.id}')" style="align-self:flex-end; background:none; border:none; color:var(--danger); font-size:12px; cursor:pointer;">🗑️ ${t('Supprimer', 'حذف')}</button>
+    </div>`;
+  }).join('') || `<div style="text-align:center; color:var(--dim); padding:30px 0; font-size:13px;">${t('Aucun partenaire', 'لا يوجد شركاء')}</div>`;
+}
+
 // ---------- settings tab ----------
 window.saveWhatsapp = async function () {
   const wa = document.getElementById('wa-input').value.trim();
@@ -577,6 +793,12 @@ document.getElementById('modal-confirm-btn').onclick = function () {
 renderAccounts();
 renderMonthLabel();
 renderPayments();
+renderPartners();
+const initPartnersLabel = document.getElementById('partners-month-label');
+if (initPartnersLabel) {
+  const months = currentLang === 'ar' ? MONTHS_AR : MONTHS_FR;
+  initPartnersLabel.textContent = months[payMonth] + ' ' + payYear;
+}
 </script>
 </body>
 </html>
