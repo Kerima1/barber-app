@@ -625,9 +625,13 @@ window.showDirectory = function () {
     backBtn.style.display = 'none';
   }
 
-  renderHistory();
-  if (!unsubscribeDirectory) loadDirectoryList();
-  else renderDirectoryList();
+  try { renderHistory(); } catch (e) { showCrash('renderHistory failed (non-blocking): ' + (e && e.message || e)); }
+  try {
+    if (!unsubscribeDirectory) loadDirectoryList();
+    else renderDirectoryList();
+  } catch (e) {
+    showCrash('Directory render failed: ' + (e && e.message || e));
+  }
 };
 window.returnToLastShop = function () { if (lastShopSlug) openShop(lastShopSlug); };
 
@@ -964,30 +968,51 @@ window.renderDirectoryList = function () {
 
 // ---------- history (recently visited shops, kept on this device only) ----------
 function getHistory() {
-  try { return JSON.parse(localStorage.getItem('barberHistory') || '[]'); } catch (e) { return []; }
+  // A bad/partial entry here (e.g. missing slug, from an older version of this
+  // feature or a corrupted localStorage write) used to crash renderHistory()
+  // below — and since that crash happened before the shop list was loaded,
+  // it silently blocked the ENTIRE directory from ever showing up, with no
+  // network involved at all. Filtering here means one bad saved entry can
+  // never take down the whole screen again.
+  let list;
+  try { list = JSON.parse(localStorage.getItem('barberHistory') || '[]'); } catch (e) { list = []; }
+  if (!Array.isArray(list)) list = [];
+  const clean = list.filter(h => h && typeof h.slug === 'string' && h.slug);
+  if (clean.length !== list.length) {
+    try { localStorage.setItem('barberHistory', JSON.stringify(clean)); } catch (e) {}
+  }
+  return clean;
 }
 function addToHistory(hSlug, name, logoUrl) {
+  if (!hSlug) return;
   let list = getHistory().filter(h => h.slug !== hSlug);
   list.unshift({ slug: hSlug, name, logoUrl: logoUrl || null });
   list = list.slice(0, 5);
   localStorage.setItem('barberHistory', JSON.stringify(list));
 }
 function renderHistory() {
-  const list = getHistory();
-  const section = document.getElementById('dir-history-section');
-  const row = document.getElementById('history-row');
-  if (list.length === 0) { section.style.display = 'none'; return; }
-  section.style.display = 'block';
-  row.innerHTML = list.map(h => {
-    const letter = (h.name || '?').trim()[0]?.toUpperCase() || '?';
-    const icon = h.logoUrl
-      ? `<img src="${h.logoUrl}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'letter\\'>${letter}</span>'">`
-      : `<span class="letter">${letter}</span>`;
-    return `<div class="history-chip" onclick="openShop('${h.slug.replace(/'/g, "\\'")}')">
-      <div class="hc-icon">${icon}</div>
-      <div class="hc-name">${h.name}</div>
-    </div>`;
-  }).join('');
+  try {
+    const list = getHistory();
+    const section = document.getElementById('dir-history-section');
+    const row = document.getElementById('history-row');
+    if (list.length === 0) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    row.innerHTML = list.map(h => {
+      const letter = (h.name || '?').trim()[0]?.toUpperCase() || '?';
+      const icon = h.logoUrl
+        ? `<img src="${h.logoUrl}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'letter\\'>${letter}</span>'">`
+        : `<span class="letter">${letter}</span>`;
+      return `<div class="history-chip" onclick="openShop('${h.slug.replace(/'/g, "\\'")}')">
+        <div class="hc-icon">${icon}</div>
+        <div class="hc-name">${h.name || ''}</div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    // Never let a history-rendering problem take the rest of the directory down with it.
+    const section = document.getElementById('dir-history-section');
+    if (section) section.style.display = 'none';
+    showCrash('renderHistory failed (non-blocking): ' + (e && e.message || e));
+  }
 }
 
 // ---------- QR scanner (jumps straight into a shop, no reload / no install) ----------
