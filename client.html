@@ -163,7 +163,8 @@
   .scan-video-wrap video { width: 100%; height: 100%; object-fit: cover; }
   .scan-frame { position: absolute; inset: 15% 12%; border: 3px solid #fff; border-radius: 24px; opacity: .85; pointer-events: none; }
   .scan-hint { position: absolute; bottom: 90px; left: 0; right: 0; text-align: center; color: #fff; font-size: 13px; opacity: .85; padding: 0 20px; }
-  .scan-close { margin: 18px auto 28px; width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,.15); border: none; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .scan-close { margin: 10px auto 24px; width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,.15); border: none; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .scan-gallery-btn { margin: 18px auto 0; display: block; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.3); color: #fff; padding: 10px 20px; border-radius: 20px; font-weight: 700; font-size: 13px; }
   .scan-error { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: #fff; padding: 30px; font-size: 13.5px; }
 </style>
 </head>
@@ -190,6 +191,10 @@
     <button class="dir-icon-btn" onclick="startScan()" title="Scanner un QR code">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
     </button>
+    <button class="dir-icon-btn" onclick="pickQRFromGallery()" title="Choisir une photo du QR code">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+    </button>
+    <input type="file" id="scan-file-input" accept="image/*" style="display:none;" onchange="handleScanFile(event)">
   </div>
 
   <button class="dir-near-btn" id="dir-near-btn" onclick="findNearMe()">
@@ -325,6 +330,7 @@
     <div class="scan-hint" data-fr="Visez le QR code du salon" data-ar="وجّه الكاميرا نحو رمز QR الخاص بالصالون">Visez le QR code du salon</div>
     <div class="scan-error" id="scan-error" style="display:none;"></div>
   </div>
+  <button class="scan-gallery-btn" onclick="pickQRFromGallery()" data-fr="Choisir une photo" data-ar="اختر صورة">Choisir une photo</button>
   <button class="scan-close" onclick="stopScan()">✕</button>
 </div>
 
@@ -683,6 +689,46 @@ function handleScanResult(text) {
   if (scannedSlug) openShop(scannedSlug);
   else alert(t('Ce QR code n’est pas reconnu.', 'رمز QR هذا غير معروف.'));
 }
+
+// ---------- QR scanner: pick a photo already saved on the phone ----------
+window.pickQRFromGallery = function () {
+  document.getElementById('scan-file-input').click();
+};
+window.handleScanFile = function (event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  input.value = ''; // so picking the exact same file again still fires onchange
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const img = new Image();
+    img.onload = function () {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      let code = null;
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        code = typeof jsQR !== 'undefined' ? jsQR(imageData.data, imageData.width, imageData.height) : null;
+      } catch (err) {
+        code = null;
+      }
+      if (code && code.data) {
+        handleScanResult(code.data);
+      } else {
+        alert(t('Aucun QR code trouvé dans cette photo. Essayez une photo plus nette ou plus proche.', 'لم يتم العثور على رمز QR في هذه الصورة. جرّب صورة أوضح أو أقرب.'));
+      }
+    };
+    img.onerror = function () {
+      alert(t('Impossible d’ouvrir cette photo.', 'تعذر فتح هذه الصورة.'));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
 
 function render() {
   document.getElementById('shop-name').textContent = shopData.name;
