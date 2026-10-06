@@ -142,6 +142,7 @@
   input, textarea { outline: none; -webkit-tap-highlight-color: transparent; }
   .dir-icon-btn { width: 46px; height: 46px; flex-shrink: 0; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--accent); display: flex; align-items: center; justify-content: center; }
   .dir-near-row { display: flex; gap: 8px; margin-bottom: 18px; }
+  #toast { position: fixed; left: 16px; right: 16px; bottom: 22px; z-index: 9999; max-width: 420px; margin: 0 auto; padding: 12px 14px; border-radius: 14px; background: #1E1033; color: #fff; font-size: 13px; line-height: 1.5; text-align: center; box-shadow: 0 6px 24px rgba(0,0,0,.25); display: none; }
   #near-msg { display: none; margin: -8px 0 16px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); color: var(--dim); font-size: 12.5px; line-height: 1.5; }
   .dir-near-btn { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; padding: 11px; border-radius: 12px; border: 1px dashed var(--accent); background: transparent; color: var(--accent); font-weight: 700; font-size: 12.5px; }
   .dir-near-btn { transition: background .15s, color .15s, border-color .15s, transform .1s; cursor: pointer; }
@@ -487,10 +488,19 @@ function updateThemeColor() {
 // next" doesn't turn purple right away. Forcing one fresh server read the
 // moment the app becomes visible again fixes that instantly, instead of
 // waiting on the listener's own reconnect timing.
+// "Connected" = the phone has a network AND Firestore has actually reached the
+// server (a shop snapshot that is not just a saved copy). Taking a ticket needs
+// the server, so the button is switched off whenever this is false.
+let serverConnected = true;
+function isConnected() { return navigator.onLine && serverConnected; }
+window.addEventListener('offline', () => { if (uid && shopData) render(); });
+window.addEventListener('online', () => { refreshOnResume(); });
+
 async function refreshOnResume() {
   if (!uid || !shopData) return; // directory open, or nothing loaded yet
   try {
     const fresh = await getDocFromServer(doc(db, 'shops', uid));
+    serverConnected = true;
     if (!fresh.exists()) return;
     shopData = fresh.data();
     if (shopData.active === false) { showShopInactive(); return; }
@@ -561,8 +571,9 @@ async function init() {
       });
     }
 
-    unsubscribeShop = onSnapshot(doc(db, 'shops', uid), (snap) => {
+    unsubscribeShop = onSnapshot(doc(db, 'shops', uid), { includeMetadataChanges: true }, (snap) => {
       gotShopData = true;
+      serverConnected = !snap.metadata.fromCache;
       applyShopDoc(snap);
     }, (err) => {
       showCrash('Shop listener error: ' + (err && (err.code || err.message) || err));
@@ -1253,8 +1264,13 @@ function render() {
   const takeBtn = document.getElementById('take-btn');
   if (myTicket === null) {
     takeBtn.style.display = 'block';
-    takeBtn.disabled = full;
-    takeBtn.textContent = full ? t('File complète pour aujourd\u2019hui','الطابور ممتلئ لهذا اليوم') : t('Prendre mon numéro','خذ رقمك');
+    const offline = !isConnected();
+    takeBtn.disabled = full || offline;
+    takeBtn.textContent = full
+      ? t('File complète pour aujourd\u2019hui','الطابور ممتلئ لهذا اليوم')
+      : offline
+        ? t('Connexion requise pour prendre un numéro','يلزم الاتصال بالإنترنت لأخذ رقم')
+        : t('Prendre mon numéro','خذ رقمك');
   } else {
     takeBtn.style.display = 'none';
   }
@@ -1301,8 +1317,33 @@ function renderMyTicket(chairs, waiting, missed) {
 
 // step 1 — show the number they're about to take and ask them to confirm,
 // same pattern as the owner's manual-number button
+// One small message at the bottom of the screen (replaced, never stacked).
+let toastTimer = null;
+function showToast(text, ms) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  clearTimeout(toastTimer);
+  el.textContent = text;
+  el.style.display = 'block';
+  if (ms) toastTimer = setTimeout(() => { el.style.display = 'none'; }, ms);
+}
+function hideToast() {
+  clearTimeout(toastTimer);
+  const el = document.getElementById('toast');
+  if (el) el.style.display = 'none';
+}
+// A ticket number is handed out by the server, so it can only be taken online.
+// Offline, the number on screen is just the last one this phone saw — it may
+// already belong to someone else — so we say so instead of pretending.
+function noInternetForTicket() {
+  showToast(t(
+    'Pas de connexion internet. Reconnectez-vous pour prendre un numéro.',
+    'لا يوجد اتصال بالإنترنت. يرجى الاتصال بالإنترنت للحصول على رقم.'
+  ), 5000);
+}
 window.askTakeNumber = function () {
   if (!uid || !shopData) return;
+  if (!isConnected()) { noInternetForTicket(); return; }
   document.getElementById('ask-num-value').textContent = '#' + shopData.nextTicket;
   document.getElementById('ask-num-overlay').classList.add('show');
 };
@@ -1314,9 +1355,16 @@ window.closeAskNum = function () {
 let takingNumber = false;
 window.confirmTakeNumber = async function () {
   if (takingNumber) return; // a tap already in flight — ignore repeat taps until it resolves
+  if (!isConnected()) { closeAskNum(); noInternetForTicket(); return; }
   takingNumber = true;
   const confirmBtn = document.getElementById('ask-num-confirm-btn');
   confirmBtn.disabled = true;
+  // On a weak connection the request can take a while. Don't give up on it (it
+  // could still go through and quietly take a number) — just tell the person.
+  const slowTimer = setTimeout(() => showToast(t(
+    'Connexion lente… veuillez patienter.',
+    'الاتصال بطيء… يرجى الانتظار.'
+  )), 8000);
   try {
     const ref = doc(db, 'shops', uid);
     const newTicket = await runTransaction(db, async (tx) => {
@@ -1336,6 +1384,8 @@ window.confirmTakeNumber = async function () {
   } catch (e) {
     alert(t('Une erreur est survenue — réessayez.', 'حدث خطأ — حاول مرة أخرى.'));
   } finally {
+    clearTimeout(slowTimer);
+    hideToast();
     takingNumber = false;
     confirmBtn.disabled = false;
   }
@@ -1486,5 +1536,6 @@ init();
 <script>
 if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js"); }
 </script>
+<div id="toast"></div>
 </body>
 </html>
