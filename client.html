@@ -17,6 +17,7 @@
      the manifest/icon tags above — created fresh in JS once the real
      shop name is known -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;900&display=swap');
 
@@ -128,6 +129,47 @@
   .confirm-num-cancel { background: var(--surface-2); color: var(--text); }
   .confirm-num-ok { background: var(--accent); color: #fff; }
   .confirm-num-ok:disabled { opacity: .6; }
+
+  /* ---------- directory (home / shop list) ---------- */
+  .dir-title { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 14px; text-align: center; }
+  .dir-search-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .dir-search { flex: 1; padding: 13px 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit; -webkit-appearance: none; appearance: none; }
+  .dir-icon-btn { width: 46px; height: 46px; flex-shrink: 0; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+  .dir-near-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 11px; margin-bottom: 18px; border-radius: 12px; border: 1px dashed var(--accent); background: transparent; color: var(--accent); font-weight: 700; font-size: 12.5px; }
+  .dir-near-btn.active { border-style: solid; background: var(--surface-2); }
+
+  .dir-section-lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); margin: 18px 0 10px; text-align: left; }
+  body.ar .dir-section-lbl { text-align: right; }
+
+  .history-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 4px; }
+  .history-chip { flex-shrink: 0; width: 64px; text-align: center; }
+  .history-chip .hc-icon { width: 52px; height: 52px; border-radius: 16px; overflow: hidden; margin: 0 auto 6px; }
+  .history-chip .hc-icon img { width: 100%; height: 100%; object-fit: cover; }
+  .history-chip .hc-icon .letter { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--surface-2); border: 1.5px solid var(--accent); border-radius: inherit; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; color: var(--accent); }
+  .history-chip .hc-name { font-size: 10.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .shop-card { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 13px; margin-bottom: 10px; text-align: left; }
+  body.ar .shop-card { text-align: right; }
+  .shop-card .sc-icon { width: 46px; height: 46px; border-radius: 14px; overflow: hidden; flex-shrink: 0; }
+  .shop-card .sc-icon img { width: 100%; height: 100%; object-fit: cover; }
+  .shop-card .sc-icon .letter { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--surface-2); border: 1.5px solid var(--accent); border-radius: inherit; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; color: var(--accent); }
+  .shop-card .sc-body { flex: 1; min-width: 0; }
+  .shop-card .sc-name { font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .shop-card .sc-meta { font-size: 12px; color: var(--dim); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .shop-card .sc-dist { font-weight: 700; color: var(--accent); }
+
+  .dir-empty { text-align: center; padding: 40px 0; color: var(--dim); font-size: 13.5px; }
+
+  .back-to-dir { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: none; color: var(--dim); font-size: 12.5px; font-weight: 700; margin-bottom: 14px; padding: 4px 0; }
+
+  .scan-overlay { display: none; position: fixed; inset: 0; background: #000; z-index: 100; flex-direction: column; }
+  .scan-overlay.show { display: flex; }
+  .scan-video-wrap { flex: 1; position: relative; overflow: hidden; }
+  .scan-video-wrap video { width: 100%; height: 100%; object-fit: cover; }
+  .scan-frame { position: absolute; inset: 15% 12%; border: 3px solid #fff; border-radius: 24px; opacity: .85; pointer-events: none; }
+  .scan-hint { position: absolute; bottom: 90px; left: 0; right: 0; text-align: center; color: #fff; font-size: 13px; opacity: .85; padding: 0 20px; }
+  .scan-close { margin: 18px auto 28px; width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,.15); border: none; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .scan-error { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: #fff; padding: 30px; font-size: 13.5px; }
 </style>
 </head>
 <body>
@@ -140,7 +182,37 @@
   <button class="theme-btn" id="theme-btn" onclick="toggleTheme()"></button>
 </div>
 
-<div class="wrap" id="app">
+<div class="wrap" id="directory" style="display:none;">
+  <div class="dir-title" data-fr="Trouver un salon" data-ar="ابحث عن صالون">Trouver un salon</div>
+
+  <div class="dir-search-row">
+    <input class="dir-search" id="dir-search-input" oninput="renderDirectoryList()" data-fr-placeholder="Nom ou téléphone…" data-ar-placeholder="الاسم أو الهاتف…" placeholder="Nom ou téléphone…">
+    <button class="dir-icon-btn" onclick="startScan()" title="Scanner un QR code">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+    </button>
+  </div>
+
+  <button class="dir-near-btn" id="dir-near-btn" onclick="findNearMe()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+    <span data-fr="Trier par proximité" data-ar="الترتيب حسب القرب">Trier par proximité</span>
+  </button>
+
+  <div id="dir-history-section" style="display:none;">
+    <div class="dir-section-lbl" data-fr="Récemment visités" data-ar="تمت زيارتها مؤخرًا">Récemment visités</div>
+    <div class="history-row" id="history-row"></div>
+  </div>
+
+  <div class="dir-section-lbl" data-fr="Tous les salons" data-ar="كل الصالونات">Tous les salons</div>
+  <div id="dir-list"></div>
+  <div class="dir-empty" id="dir-empty" style="display:none;" data-fr="Aucun salon trouvé." data-ar="لم يتم العثور على أي صالون.">Aucun salon trouvé.</div>
+</div>
+
+<div class="wrap" id="app" style="display:none;">
+
+  <button class="back-to-dir" onclick="showDirectory()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    <span data-fr="Autres salons" data-ar="صالونات أخرى">Autres salons</span>
+  </button>
 
   <div class="hero">
     <div class="hero-icon" id="hero-icon"><span class="letter">B</span></div>
@@ -234,10 +306,21 @@
   </div>
 </div>
 
+<div class="scan-overlay" id="scan-overlay">
+  <div class="scan-video-wrap">
+    <video id="scan-video" playsinline muted autoplay></video>
+    <div class="scan-frame"></div>
+    <div class="scan-hint" data-fr="Visez le QR code du salon" data-ar="وجّه الكاميرا نحو رمز QR الخاص بالصالون">Visez le QR code du salon</div>
+    <div class="scan-error" id="scan-error" style="display:none;"></div>
+  </div>
+  <button class="scan-close" onclick="stopScan()">✕</button>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, onSnapshot, runTransaction, enableIndexedDbPersistence
+  getFirestore, doc, getDoc, onSnapshot, runTransaction, enableIndexedDbPersistence,
+  collection, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -285,14 +368,17 @@ window.setLang = function (lang) {
   document.getElementById('lang-fr').classList.toggle('active', lang === 'fr');
   document.getElementById('lang-ar').classList.toggle('active', lang === 'ar');
   document.querySelectorAll('[data-fr]').forEach(el => { el.textContent = lang === 'ar' ? el.getAttribute('data-ar') : el.getAttribute('data-fr'); });
+  document.querySelectorAll('[data-fr-placeholder]').forEach(el => { el.placeholder = lang === 'ar' ? el.getAttribute('data-ar-placeholder') : el.getAttribute('data-fr-placeholder'); });
   if (shopData) render();
+  if (document.getElementById('directory').style.display !== 'none') renderDirectoryList();
   localStorage.setItem('barberLang', lang);
 };
 
-const slug = new URLSearchParams(location.search).get('shop');
+let slug = new URLSearchParams(location.search).get('shop');
 let uid = null, shopData = null;
-const storageKey = 'myTicket_' + slug;
-let myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
+let storageKey = 'myTicket_' + slug;
+let myTicket = null;
+let unsubscribeShop = null;
 
 // per-shop manifest so "Add to Home Screen" reopens this exact shop,
 // using THAT SHOP's own logo and name as the saved icon — not the generic one.
@@ -385,14 +471,18 @@ function setPerShopManifest(name, logoUrl, hasCachedLogo) {
 setPerShopManifest(null, null, false);
 
 async function init() {
-  if (!slug) { showNotFound(); return; }
+  if (!slug) { showDirectory(); return; }
+  document.getElementById('directory').style.display = 'none';
+  document.getElementById('not-found').style.display = 'none';
   document.getElementById('load-error').style.display = 'none';
   document.getElementById('app').style.display = 'block';
+  if (unsubscribeShop) { unsubscribeShop(); unsubscribeShop = null; }
+  manifestNamed = false;
   try {
     const slugSnap = await getDoc(doc(db, 'slugs', slug));
     if (!slugSnap.exists()) { showNotFound(); return; }
     uid = slugSnap.data().uid;
-    onSnapshot(doc(db, 'shops', uid), (snap) => {
+    unsubscribeShop = onSnapshot(doc(db, 'shops', uid), (snap) => {
       if (!snap.exists()) { showNotFound(); return; }
       const prevLogo = shopData?.logoUrl;
       shopData = snap.data();
@@ -406,6 +496,7 @@ async function init() {
           } catch (e) { /* install-icon metadata failing should never block the actual page */ }
         })();
       }
+      addToHistory(slug, shopData.name, shopData.logoUrl);
       render();
     }, () => showLoadError()); // onSnapshot's own error callback — fires if the live connection drops
   } catch (e) {
@@ -415,6 +506,7 @@ async function init() {
 
 function showLoadError() {
   document.getElementById('app').style.display = 'none';
+  document.getElementById('directory').style.display = 'none';
   document.getElementById('not-found').style.display = 'none';
   document.getElementById('load-error').style.display = 'block';
 }
@@ -422,7 +514,210 @@ window.retryInit = function () { init(); };
 
 function showNotFound() {
   document.getElementById('app').style.display = 'none';
+  document.getElementById('directory').style.display = 'none';
   document.getElementById('not-found').style.display = 'block';
+}
+
+// ---------- directory (home screen / shop list) ----------
+let allShops = [];        // [{slug, uid, name, phone, logoUrl, waiting, lat, lng}]
+let unsubscribeDirectory = null;
+let myCoords = null;      // {lat, lng} once the visitor allows location
+
+window.showDirectory = function () {
+  if (unsubscribeShop) { unsubscribeShop(); unsubscribeShop = null; }
+  slug = null;
+  uid = null;
+  shopData = null;
+  history.replaceState(null, '', location.pathname);
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('not-found').style.display = 'none';
+  document.getElementById('load-error').style.display = 'none';
+  document.getElementById('directory').style.display = 'block';
+  document.title = t('Barber — Trouver un salon', 'Barber — ابحث عن صالون');
+  renderHistory();
+  if (!unsubscribeDirectory) loadDirectoryList();
+  else renderDirectoryList();
+};
+
+// opening a specific shop from the directory, a history chip, or a scanned QR —
+// all go through here, so none of them trigger a page reload or a new install
+window.openShop = function (newSlug) {
+  if (!newSlug) return;
+  slug = newSlug;
+  storageKey = 'myTicket_' + slug;
+  myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
+  history.replaceState(null, '', location.pathname + '?shop=' + encodeURIComponent(slug));
+  init();
+};
+
+function loadDirectoryList() {
+  const q = query(collection(db, 'shops'), where('active', '==', true));
+  unsubscribeDirectory = onSnapshot(q, (snap) => {
+    allShops = [];
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (!d.slug) return;
+      allShops.push({
+        uid: docSnap.id, slug: d.slug, name: d.name || '', phone: d.phone || '',
+        logoUrl: d.logoUrl || null, waiting: (d.waiting || []).length, lat: d.lat, lng: d.lng
+      });
+    });
+    renderDirectoryList();
+  });
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+window.findNearMe = function () {
+  const btn = document.getElementById('dir-near-btn');
+  if (!navigator.geolocation) { alert(t('La localisation n’est pas disponible sur cet appareil.', 'تحديد الموقع غير متاح على هذا الجهاز.')); return; }
+  btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      btn.classList.add('active');
+      btn.disabled = false;
+      renderDirectoryList();
+    },
+    () => {
+      btn.disabled = false;
+      alert(t('Impossible d’obtenir votre position — vérifiez les autorisations de localisation.', 'تعذر تحديد موقعك — تحقق من أذونات الموقع.'));
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+};
+
+window.renderDirectoryList = function () {
+  const term = (document.getElementById('dir-search-input').value || '').trim().toLowerCase();
+  let list = allShops.filter(s => !term || s.name.toLowerCase().includes(term) || (s.phone || '').includes(term));
+
+  list = list.map(s => {
+    const hasCoords = myCoords && typeof s.lat === 'number' && typeof s.lng === 'number';
+    return { ...s, dist: hasCoords ? haversineKm(myCoords.lat, myCoords.lng, s.lat, s.lng) : null };
+  });
+
+  if (myCoords) {
+    list.sort((a, b) => (a.dist === null) - (b.dist === null) || (a.dist ?? 0) - (b.dist ?? 0));
+  }
+
+  const listEl = document.getElementById('dir-list');
+  const emptyEl = document.getElementById('dir-empty');
+  if (list.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = list.map(s => {
+    const letter = (s.name || '?').trim()[0]?.toUpperCase() || '?';
+    const icon = s.logoUrl
+      ? `<img src="${s.logoUrl}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'letter\\'>${letter}</span>'">`
+      : `<span class="letter">${letter}</span>`;
+    const distTxt = s.dist !== null ? `<span class="sc-dist">${s.dist < 1 ? Math.round(s.dist * 1000) + ' m' : s.dist.toFixed(1) + ' km'}</span>` : '';
+    const waitTxt = `<span>${s.waiting} ${t('en attente', 'بالانتظار')}</span>`;
+    return `<div class="shop-card" onclick="openShop('${s.slug.replace(/'/g, "\\'")}')">
+      <div class="sc-icon">${icon}</div>
+      <div class="sc-body">
+        <div class="sc-name">${s.name}</div>
+        <div class="sc-meta">${distTxt}${waitTxt}</div>
+      </div>
+    </div>`;
+  }).join('');
+};
+
+// ---------- history (recently visited shops, kept on this device only) ----------
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('barberHistory') || '[]'); } catch (e) { return []; }
+}
+function addToHistory(hSlug, name, logoUrl) {
+  let list = getHistory().filter(h => h.slug !== hSlug);
+  list.unshift({ slug: hSlug, name, logoUrl: logoUrl || null });
+  list = list.slice(0, 8);
+  localStorage.setItem('barberHistory', JSON.stringify(list));
+}
+function renderHistory() {
+  const list = getHistory();
+  const section = document.getElementById('dir-history-section');
+  const row = document.getElementById('history-row');
+  if (list.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  row.innerHTML = list.map(h => {
+    const letter = (h.name || '?').trim()[0]?.toUpperCase() || '?';
+    const icon = h.logoUrl
+      ? `<img src="${h.logoUrl}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'letter\\'>${letter}</span>'">`
+      : `<span class="letter">${letter}</span>`;
+    return `<div class="history-chip" onclick="openShop('${h.slug.replace(/'/g, "\\'")}')">
+      <div class="hc-icon">${icon}</div>
+      <div class="hc-name">${h.name}</div>
+    </div>`;
+  }).join('');
+}
+
+// ---------- QR scanner (jumps straight into a shop, no reload / no install) ----------
+let scanStream = null;
+let scanRAF = null;
+window.startScan = async function () {
+  const overlay = document.getElementById('scan-overlay');
+  const video = document.getElementById('scan-video');
+  const errEl = document.getElementById('scan-error');
+  errEl.style.display = 'none';
+  video.style.display = 'block';
+  overlay.classList.add('show');
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = scanStream;
+    await video.play();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const tick = () => {
+      if (!scanStream) return;
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = typeof jsQR !== 'undefined' ? jsQR(imageData.data, imageData.width, imageData.height) : null;
+        if (code && code.data) {
+          handleScanResult(code.data);
+          return;
+        }
+      }
+      scanRAF = requestAnimationFrame(tick);
+    };
+    scanRAF = requestAnimationFrame(tick);
+  } catch (e) {
+    video.style.display = 'none';
+    errEl.style.display = 'flex';
+    errEl.textContent = t(
+      'Impossible d’accéder à la caméra — vérifiez les autorisations.',
+      'تعذر الوصول إلى الكاميرا — تحقق من الأذونات.'
+    );
+  }
+};
+window.stopScan = function () {
+  if (scanRAF) cancelAnimationFrame(scanRAF);
+  scanRAF = null;
+  if (scanStream) { scanStream.getTracks().forEach(tr => tr.stop()); scanStream = null; }
+  document.getElementById('scan-overlay').classList.remove('show');
+};
+function handleScanResult(text) {
+  stopScan();
+  let scannedSlug = null;
+  try {
+    const u = new URL(text, location.href);
+    scannedSlug = u.searchParams.get('shop');
+  } catch (e) {
+    // not a URL — maybe the raw slug was encoded directly
+    scannedSlug = text.trim();
+  }
+  if (scannedSlug) openShop(scannedSlug);
+  else alert(t('Ce QR code n’est pas reconnu.', 'رمز QR هذا غير معروف.'));
 }
 
 function render() {
