@@ -149,6 +149,11 @@
   .map-pin-popup button { display: block; width: 100%; padding: 8px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 700; font-size: 12.5px; margin-bottom: 6px; }
   .map-pin-popup a { font-size: 11.5px; color: var(--dim); text-decoration: underline; }
 
+  .shop-pin-badge { width: 34px; height: 34px; border-radius: 10px; background: #fff; border: 2px solid var(--accent); box-shadow: 0 2px 6px rgba(0,0,0,.35); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .shop-pin-badge img { width: 100%; height: 100%; object-fit: cover; }
+  .shop-pin-badge span { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 700; color: var(--accent); }
+  .shop-pin-point { width: 0; height: 0; margin: -1px auto 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--accent); }
+
   .dir-section-lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); margin: 18px 0 10px; text-align: left; }
   body.ar .dir-section-lbl { text-align: right; }
 
@@ -623,6 +628,8 @@ window.findNearMe = function () {
 // ---------- map (shows "my location" as a circle + every shop as a pin) ----------
 let mapInstance = null;
 let myMarker = null;
+let myAccuracyCircle = null;
+let myAccuracy = null;
 let shopMarkers = [];
 
 window.toggleMap = function () {
@@ -631,21 +638,26 @@ window.toggleMap = function () {
   if (isOpen) { box.style.display = 'none'; return; }
   box.style.display = 'block';
 
-  if (!myCoords) {
-    // ask for location the first time the map is opened, same prompt as "Trier par proximité"
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          document.getElementById('dir-near-btn').classList.add('active');
-          renderDirectoryList();
-          openMap();
-        },
-        () => openMap(), // no permission — still show the shops, just without "my location"
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-      return;
-    }
+  // Always get a fresh fix when opening the map, even if we already have an
+  // old myCoords from earlier (e.g. from "Trier par proximité"). A phone's
+  // very first location fix is often a rough, low-accuracy one (based on
+  // wifi/cell towers, not GPS) and can be off by hundreds of meters — which
+  // is exactly what looked like "I'm not there". Re-asking gives GPS a
+  // chance to lock on, and we also draw the real accuracy radius so it's
+  // honest about how precise it is, instead of implying it's exact.
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        myAccuracy = pos.coords.accuracy || null;
+        document.getElementById('dir-near-btn').classList.add('active');
+        renderDirectoryList();
+        openMap();
+      },
+      () => openMap(), // no permission / failed — still show the shops, just without "my location"
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+    return;
   }
   openMap();
 };
@@ -691,7 +703,16 @@ function renderMapMarkers() {
   if (!mapInstance) return;
 
   if (myMarker) { mapInstance.removeLayer(myMarker); myMarker = null; }
+  if (myAccuracyCircle) { mapInstance.removeLayer(myAccuracyCircle); myAccuracyCircle = null; }
   if (myCoords) {
+    // The accuracy circle (real-world meters, not pixels) makes it honest
+    // about how precise the fix actually is — same idea as the pale blue
+    // ring Google Maps draws around your own position.
+    if (myAccuracy) {
+      myAccuracyCircle = L.circle([myCoords.lat, myCoords.lng], {
+        radius: myAccuracy, color: '#7C5CFF', weight: 1, fillColor: '#7C5CFF', fillOpacity: 0.12
+      }).addTo(mapInstance);
+    }
     myMarker = L.circleMarker([myCoords.lat, myCoords.lng], {
       radius: 9, color: '#fff', weight: 3, fillColor: '#7C5CFF', fillOpacity: 1
     }).addTo(mapInstance).bindPopup(t('Vous êtes ici', 'أنت هنا'));
@@ -704,11 +725,22 @@ function renderMapMarkers() {
     // A plain L.marker() uses Leaflet's default image-pin icon, whose image
     // path breaks when Leaflet is loaded straight from a CDN (the images
     // just never load — the marker is technically there, just invisible).
-    // A circleMarker is drawn as a vector shape, so it always renders,
-    // regardless of where the page is hosted.
-    const marker = L.circleMarker([s.lat, s.lng], {
-      radius: 10, color: '#fff', weight: 2.5, fillColor: '#C94C3C', fillOpacity: 1
-    }).addTo(mapInstance);
+    // A divIcon is just our own HTML, drawn with the shop's own logo (or
+    // its first letter, same fallback used everywhere else in the app), so
+    // each pin actually looks like that shop and never depends on an
+    // external image file that can silently fail to load.
+    const letter = (s.name || '?').trim()[0]?.toUpperCase() || '?';
+    const pinInner = s.logoUrl
+      ? `<img src="${s.logoUrl}" alt="" onerror="this.outerHTML='<span>${letter}</span>'">`
+      : `<span>${letter}</span>`;
+    const icon = L.divIcon({
+      className: 'shop-pin',
+      html: `<div class="shop-pin-badge">${pinInner}</div><div class="shop-pin-point"></div>`,
+      iconSize: [34, 42],
+      iconAnchor: [17, 42],
+      popupAnchor: [0, -40]
+    });
+    const marker = L.marker([s.lat, s.lng], { icon }).addTo(mapInstance);
     const safeSlug = (s.slug || '').replace(/'/g, "\\'");
     const dirUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + s.lat + ',' + s.lng;
     marker.bindPopup(
