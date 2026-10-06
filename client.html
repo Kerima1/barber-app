@@ -124,6 +124,7 @@
   .confirm-num-cancel { background: var(--surface-2); color: var(--text); }
   .confirm-num-ok { background: var(--accent); color: #fff; }
   .confirm-num-ok:disabled { opacity: .6; }
+  .confirm-num-ok-solo { display: block; width: 100%; margin-top: 22px; padding: 15px; border: none; border-radius: 14px; font-weight: 700; font-size: 15px; }
 
   /* ---------- directory (home / shop list) ---------- */
   .dir-title { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 14px; text-align: center; }
@@ -319,7 +320,7 @@
     <div class="lbl" id="confirm-num-label" data-fr="Votre numéro" data-ar="رقمك">Votre numéro</div>
     <div class="num" id="confirm-num-value">—</div>
     <div class="hint" id="confirm-num-hint" data-fr="Gardez cet écran — on vous appellera quand ce sera votre tour." data-ar="احتفظ بهذه الشاشة — سيتم مناداتك عند حلول دورك.">Gardez cet écran — on vous appellera quand ce sera votre tour.</div>
-    <button class="confirm-num-ok" style="display:block; width:100%; margin-top:20px;" onclick="closeConfirmNum()" data-fr="D'accord" data-ar="حسنًا">D'accord</button>
+    <button class="confirm-num-ok confirm-num-ok-solo" onclick="closeConfirmNum()" data-fr="D'accord" data-ar="حسنًا">D'accord</button>
   </div>
 </div>
 
