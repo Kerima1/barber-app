@@ -722,53 +722,48 @@ window.findNearMe = function () {
   const btn = document.getElementById('dir-near-btn');
   if (!navigator.geolocation) { alert(t('La localisation n’est pas disponible sur cet appareil.', 'تحديد الموقع غير متاح على هذا الجهاز.')); return; }
   btn.disabled = true;
-  watchBestLocation(10000, (pos) => {
-    applyFix(pos);
-    btn.classList.add('active');
-  }, (best, roughest) => {
-    btn.disabled = false;
-    if (best) return;
-    if (roughest) {
-      const m = Math.round(roughest.coords.accuracy);
-      alert(t(
-        'Position trop imprécise (± ' + m + ' m) pour calculer les distances. Activez la localisation précise pour ce site/application.',
-        'الموقع غير دقيق (± ' + m + ' م) لحساب المسافات. فعّل الموقع الدقيق لهذا الموقع/التطبيق.'
-      ));
-    } else {
-      alert(t('Impossible d’obtenir votre position — vérifiez les autorisations de localisation.', 'تعذر تحديد موقعك — تحقق من أذونات الموقع.'));
-    }
-  });
-};
 
-// A reading whose reported accuracy is worse than this is treated as "we
-// don't really know where you are" rather than shown as a real position —
-// a coarse Android fix can be kilometers off, and used as-is it made shops
-// next door look "2.0 km" away.
-const MAX_OK_ACCURACY = 300; // meters
-
-function watchBestLocation(durationMs, onFix, onDone) {
-  let best = null, roughest = null;
-  const id = navigator.geolocation.watchPosition(
+  // Keep listening for a real GPS fix on Android. Do not show an alert just
+  // because the first readings are coarse; Android often needs more time.
+  let best = null;
+  let watchId = navigator.geolocation.watchPosition(
     (pos) => {
-      const acc = pos.coords.accuracy || Infinity;
-      if (!roughest || acc < roughest.coords.accuracy) roughest = pos;
-      if (acc > MAX_OK_ACCURACY) return;
-      if (best && acc >= best.coords.accuracy) return;
+      const accuracy = Number(pos.coords.accuracy);
+      if (!Number.isFinite(accuracy)) return;
+
+      // Ignore very coarse network/cell locations. Accept up to 150 m so
+      // devices that cannot immediately report <100 m are still usable.
+      if (accuracy > 150) return;
+      if (best && accuracy >= best.coords.accuracy) return;
+
       best = pos;
-      onFix(pos);
+      myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      myAccuracy = accuracy;
+      btn.classList.add('active');
+      renderDirectoryList();
+      if (mapInstance) renderMapMarkers();
+
+      // Keep a good GPS fix, but allow a later, even better reading to update it.
+      if (accuracy <= 50 && watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        btn.disabled = false;
+      }
     },
     () => {},
-    { enableHighAccuracy: true, maximumAge: 0 }
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
   );
-  setTimeout(() => { navigator.geolocation.clearWatch(id); onDone(best, roughest); }, durationMs);
-}
 
-function applyFix(pos) {
-  myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-  myAccuracy = pos.coords.accuracy || null;
-  renderDirectoryList();
-  if (mapInstance) renderMapMarkers();
-}
+  // Give Android enough time to obtain GPS. If no sufficiently accurate fix
+  // arrives, simply stop waiting — do not show a misleading error popup.
+  setTimeout(() => {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+    btn.disabled = false;
+  }, 30000);
+};
 
 // ---------- map (shows "my location" as a circle + every shop as a pin) ----------
 let mapInstance = null;
@@ -787,17 +782,36 @@ window.toggleMap = function () {
   openMap();
 };
 
-// A single getCurrentPosition() call on Android often returns a rough,
-// wifi/cell-based fix first, which can be hundreds of meters to a few km
-// off — that's what looked like "it doesn't show me in the right place".
-// watchPosition keeps listening for a few seconds so GPS has a chance to
-// lock on, and we keep only the most accurate reading we saw in that time.
+// Use the same GPS quality rules for the map's "you are here" position.
 function locateMe() {
   if (!navigator.geolocation) return;
-  watchBestLocation(10000, (pos) => {
-    applyFix(pos);
-    document.getElementById('dir-near-btn').classList.add('active');
-  }, () => {});
+  let best = null;
+  let watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const accuracy = Number(pos.coords.accuracy);
+      if (!Number.isFinite(accuracy) || accuracy > 150) return;
+      if (best && accuracy >= best.coords.accuracy) return;
+
+      best = pos;
+      myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      myAccuracy = accuracy;
+      document.getElementById('dir-near-btn').classList.add('active');
+      renderDirectoryList();
+      if (mapInstance) renderMapMarkers();
+
+      if (accuracy <= 50 && watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+    },
+    () => {},
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+  );
+
+  // Do not display an error popup if Android needs more time for GPS.
+  setTimeout(() => {
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  }, 30000);
 }
 
 // Jump straight to one specific shop on the map — opens the map if it's
