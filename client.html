@@ -258,6 +258,16 @@
   <p style="opacity:.7; font-size:13px; margin-top:6px;">Vérifiez le lien ou le QR code que vous avez scanné.</p>
 </div>
 
+<div id="shop-inactive" style="display:none; text-align:center; padding:70px 0; color:var(--dim);">
+  <div style="font-size:2.2rem; margin-bottom:10px;">⏸️</div>
+  <p data-fr="Ce salon n'est pas disponible pour le moment." data-ar="هذا الصالون غير متاح حاليًا.">Ce salon n'est pas disponible pour le moment.</p>
+  <p style="opacity:.7; font-size:13px; margin-top:6px;" data-fr="Réessayez plus tard." data-ar="يرجى المحاولة لاحقًا.">Réessayez plus tard.</p>
+  <button class="back-to-dir" style="margin-top:20px;" onclick="showDirectory()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    <span data-fr="Autres salons" data-ar="صالونات أخرى">Autres salons</span>
+  </button>
+</div>
+
 <div id="load-error" style="display:none; text-align:center; padding:70px 0; color:var(--dim);">
   <p>Impossible de charger les informations du salon.</p>
   <p style="opacity:.7; font-size:13px; margin-top:6px;">Vérifiez votre connexion internet.</p>
@@ -480,6 +490,7 @@ async function init() {
   document.getElementById('directory').style.display = 'none';
   document.getElementById('not-found').style.display = 'none';
   document.getElementById('load-error').style.display = 'none';
+  document.getElementById('shop-inactive').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   if (unsubscribeShop) { unsubscribeShop(); unsubscribeShop = null; }
   manifestNamed = false;
@@ -491,6 +502,13 @@ async function init() {
       if (!snap.exists()) { showNotFound(); return; }
       const prevLogo = shopData?.logoUrl;
       shopData = snap.data();
+
+      // Only an EXPLICIT false means locked — a shop created before this
+      // feature existed has no `active` field, and must keep working.
+      if (shopData.active === false) { showShopInactive(); return; }
+      document.getElementById('shop-inactive').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+
       applyAccentForCurrentTheme();
       if (!manifestNamed || shopData.logoUrl !== prevLogo) {
         manifestNamed = true;
@@ -513,6 +531,7 @@ function showLoadError() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('directory').style.display = 'none';
   document.getElementById('not-found').style.display = 'none';
+  document.getElementById('shop-inactive').style.display = 'none';
   document.getElementById('load-error').style.display = 'block';
 }
 window.retryInit = function () { init(); };
@@ -520,7 +539,16 @@ window.retryInit = function () { init(); };
 function showNotFound() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('directory').style.display = 'none';
+  document.getElementById('shop-inactive').style.display = 'none';
   document.getElementById('not-found').style.display = 'block';
+}
+
+function showShopInactive() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('directory').style.display = 'none';
+  document.getElementById('not-found').style.display = 'none';
+  document.getElementById('load-error').style.display = 'none';
+  document.getElementById('shop-inactive').style.display = 'block';
 }
 
 // ---------- directory (home screen / shop list) ----------
@@ -539,6 +567,7 @@ window.showDirectory = function () {
   document.getElementById('app').style.display = 'none';
   document.getElementById('not-found').style.display = 'none';
   document.getElementById('load-error').style.display = 'none';
+  document.getElementById('shop-inactive').style.display = 'none';
   document.getElementById('directory').style.display = 'block';
   document.title = t('Barber — Trouver un salon', 'Barber — ابحث عن صالون');
 
@@ -568,15 +597,16 @@ window.openShop = function (newSlug) {
 };
 
 function loadDirectoryList() {
-  // NOTE: not filtering by `active` yet — the admin panel and its
-  // Firestore rules (which are what actually set that field) haven't
-  // been deployed yet. Shows every shop with a slug for now; switch
-  // this back to where('active','==',true) once admin is live.
+  // Admin + rules are live now: a shop explicitly locked (active === false,
+  // set on new signups until the owner pays) is kept out of the public
+  // directory. A shop with no `active` field at all (created before this
+  // feature existed) is still shown, same as it still works for customers.
   unsubscribeDirectory = onSnapshot(collection(db, 'shops'), (snap) => {
     allShops = [];
     snap.forEach((docSnap) => {
       const d = docSnap.data();
       if (!d.slug) return;
+      if (d.active === false) return;
       allShops.push({
         uid: docSnap.id, slug: d.slug, name: d.name || '', phone: d.phone || '',
         logoUrl: d.logoUrl || null, waiting: (d.waiting || []).length, lat: d.lat, lng: d.lng
