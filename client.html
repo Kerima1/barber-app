@@ -142,8 +142,13 @@
   input, textarea { outline: none; -webkit-tap-highlight-color: transparent; }
   .dir-icon-btn { width: 46px; height: 46px; flex-shrink: 0; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--accent); display: flex; align-items: center; justify-content: center; }
   .dir-near-row { display: flex; gap: 8px; margin-bottom: 18px; }
+  #near-msg { display: none; margin: -8px 0 16px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); color: var(--dim); font-size: 12.5px; line-height: 1.5; }
   .dir-near-btn { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; padding: 11px; border-radius: 12px; border: 1px dashed var(--accent); background: transparent; color: var(--accent); font-weight: 700; font-size: 12.5px; }
-  .dir-near-btn.active { border-style: solid; background: var(--surface-2); }
+  .dir-near-btn { transition: background .15s, color .15s, border-color .15s, transform .1s; cursor: pointer; }
+  .dir-near-btn:active { transform: scale(.97); }
+  @media (hover: hover) { .dir-near-btn:hover { border-style: solid; background: var(--surface-2); } }
+  .dir-near-btn.active { border-style: solid; background: var(--accent); color: #fff; }
+  @media (hover: hover) { .dir-near-btn.active:hover { background: var(--accent); opacity: .9; } }
   #dir-map { height: 280px; border-radius: 16px; overflow: hidden; margin: -8px 0 18px; border: 1px solid var(--border); }
   #dir-map .leaflet-popup-content-wrapper { background: var(--surface); color: var(--text); border-radius: 12px; }
   #dir-map .leaflet-popup-tip { background: var(--surface); }
@@ -238,6 +243,8 @@
     </button>
   </div>
 
+  <div id="near-msg"></div>
+
   <div id="dir-map" style="display:none;"></div>
 
   <div id="dir-history-section" style="display:none;">
@@ -255,7 +262,6 @@
     <button class="take-btn" style="width:auto; padding:12px 24px; margin-top:16px; display:inline-block;" onclick="loadDirectoryList()" data-fr="Réessayer" data-ar="إعادة المحاولة">Réessayer</button>
   </div>
 </div>
-<div id="crash-banner" style="display:none; position:fixed; left:12px; right:12px; bottom:12px; z-index:99999; background:#b00020; color:#fff; font-size:12px; line-height:1.4; padding:12px 14px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,.3); max-height:40vh; overflow:auto;"></div>
 
 <div class="wrap" id="app" style="display:none;">
 
@@ -382,7 +388,8 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, getDocFromServer, getDocs, onSnapshot, runTransaction, enableIndexedDbPersistence,
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  doc, getDoc, getDocFromServer, getDocs, onSnapshot, runTransaction,
   collection, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -395,26 +402,21 @@ const firebaseConfig = {
   appId: "1:638654190129:web:2bc706db7090fa8087bb10"
 };
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-enableIndexedDbPersistence(db).catch(() => {});
-
-// ---------- visible crash reporting ----------
-// A silent JS error used to just leave the screen blank forever with no clue
-// why. This surfaces anything unexpected on-screen so it can be screenshotted
-// and reported, instead of looking identical to "still loading".
-function showCrash(msg) {
-  const el = document.getElementById('crash-banner');
-  if (!el) return;
-  el.style.display = 'block';
-  el.textContent += (el.textContent ? '\n\n' : '') + msg;
+// Offline cache stays ON (people who already have a ticket can still show it
+// to the owner without internet). The multi-tab manager lets the installed app
+// and a Chrome tab share that cache; the old single-tab version made them
+// fight over it ("failed-precondition" / "Unexpected state" errors).
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+} catch (e) {
+  db = getFirestore(app); // cache unavailable (e.g. private mode) — still works online
 }
-window.addEventListener('error', (e) => {
-  showCrash('Erreur: ' + (e.message || e) + (e.filename ? (' (' + e.filename + ':' + e.lineno + ')') : ''));
-});
-window.addEventListener('unhandledrejection', (e) => {
-  const r = e.reason;
-  showCrash('Erreur (promesse): ' + (r && (r.code || r.message) || r));
-});
+
+// Problems are logged for debugging but never shown to customers.
+function showCrash(msg) { console.warn('[barber]', msg); }
 
 let currentLang = 'fr';
 function t(fr, ar) { return currentLang === 'ar' ? ar : fr; }
@@ -718,46 +720,81 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// One short status line under the button instead of pop-up boxes: tapping the
+// button repeatedly can no longer stack up several dialogs.
+let nearBusy = false;
+let sortNear = false;   // "closest first" mode on/off
+let nearStop = null;    // cancels a search that is still running
+let nearMsgTimer = null;
+function setNearMsg(text) {
+  const el = document.getElementById('near-msg');
+  if (!el) return;
+  clearTimeout(nearMsgTimer);
+  if (!text) { el.style.display = 'none'; el.textContent = ''; return; }
+  el.textContent = text;
+  el.style.display = 'block';
+}
+
 window.findNearMe = function () {
   const btn = document.getElementById('dir-near-btn');
+  // Tapping again while it's on (or still searching) switches it OFF.
+  if (nearBusy || sortNear) {
+    if (nearStop) nearStop();
+    nearBusy = false;
+    sortNear = false;
+    btn.classList.remove('active');
+    setNearMsg('');
+    renderDirectoryList();
+    return;
+  }
   if (!navigator.geolocation) {
-    alert(t('La localisation n’est pas disponible sur cet appareil.', 'تحديد الموقع غير متاح على هذا الجهاز.'));
+    setNearMsg(t('La localisation n’est pas disponible sur cet appareil.', 'تحديد الموقع غير متاح على هذا الجهاز.'));
     return;
   }
 
-  // IMPORTANT: never leave this button disabled when Android refuses, times out,
-  // or delays the GPS fix. The old code disabled it immediately and the empty
-  // error callback could leave it apparently unclickable.
-  btn.disabled = false;
+  nearBusy = true;
   btn.classList.remove('active');
+  setNearMsg(t('Recherche de votre position…', 'جارٍ تحديد موقعك…'));
 
   let best = null;
+  let coarse = false;   // got readings, but all too imprecise to use
   let finished = false;
   let watchId = null;
+  let timer = null;
 
-  const finish = () => {
-    if (finished) return;
+  nearStop = () => {
     finished = true;
-    if (watchId !== null) {
-      navigator.geolocation.clearWatch(watchId);
-      watchId = null;
-    }
-    btn.disabled = false;
+    clearTimeout(timer);
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
   };
 
-  const onError = (err) => {
-    finish();
-    if (!best) {
-      let msg = t(
-        'Impossible d’obtenir votre position. Vérifiez que la localisation est autorisée pour ce site et que la localisation précise est activée, puis réessayez.',
-        'تعذّر الحصول على موقعك. تأكدي من السماح للموقع لهذا الموقع وتفعيل الموقع الدقيق، ثم حاولي مرة أخرى.'
+  const finish = (errCode) => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timer);
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    nearBusy = false;
+    if (best) { setNearMsg(''); return; }
+
+    let msg;
+    if (errCode === 1) {
+      msg = t(
+        'L’accès à la localisation est refusé pour ce site. Autorisez-le dans les paramètres du navigateur, puis réessayez.',
+        'تم رفض الوصول إلى الموقع لهذا الموقع. يرجى السماح به من إعدادات المتصفح ثم إعادة المحاولة.'
       );
-      if (err && err.code === 1) msg = t(
-        'L’accès à la localisation est refusé. Autorisez la localisation pour ce site, puis réessayez.',
-        'تم رفض الوصول إلى الموقع. اسمحي بالوصول إلى الموقع لهذا الموقع، ثم حاولي مرة أخرى.'
+    } else if (coarse) {
+      msg = t(
+        'Position trop approximative pour calculer les distances. Choisissez « Position précise » quand le navigateur la demande, puis réessayez.',
+        'الموقع غير دقيق بما يكفي لحساب المسافات. يرجى اختيار «الموقع الدقيق» عند ظهور طلب الإذن ثم إعادة المحاولة.'
       );
-      alert(msg);
+    } else {
+      msg = t(
+        'Impossible d’obtenir votre position. Vérifiez que la localisation est activée, puis réessayez.',
+        'تعذّر تحديد موقعك. يرجى التأكد من تفعيل الموقع ثم إعادة المحاولة.'
+      );
     }
+    setNearMsg(msg);
+    nearMsgTimer = setTimeout(() => setNearMsg(''), 12000);
   };
 
   try {
@@ -766,39 +803,32 @@ window.findNearMe = function () {
         const accuracy = Number(pos.coords.accuracy);
         if (!Number.isFinite(accuracy)) return;
 
-        // Do not use a very coarse Android network/cell estimate for sorting.
-        if (accuracy > 150) return;
+        // A very coarse Android network/cell estimate is not used for sorting.
+        if (accuracy > 150) { coarse = true; return; }
         if (best && accuracy >= best.coords.accuracy) return;
 
         best = pos;
         myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         myAccuracy = accuracy;
+        sortNear = true;
         btn.classList.add('active');
+        setNearMsg('');
         renderDirectoryList();
         if (mapInstance) renderMapMarkers();
 
-        // Once Android gives us a reasonably precise fix, stop watching.
+        // Once we have a precise fix, stop watching.
         if (accuracy <= 50) finish();
       },
-      onError,
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+      (err) => finish(err && err.code),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
   } catch (e) {
     finish();
-    alert(t(
-      'Impossible de démarrer la localisation. Vérifiez les autorisations de localisation et réessayez.',
-      'تعذّر تشغيل تحديد الموقع. تحققي من أذونات الموقع ثم حاولي مرة أخرى.'
-    ));
     return;
   }
 
-  // Never make the button permanently unusable. Android may need time for GPS.
-  setTimeout(() => {
-    if (!finished) {
-      if (!best) onError({ code: 3 });
-      else finish();
-    }
-  }, 30000);
+  // Never leave the button stuck: give GPS up to 15 seconds, then stop.
+  timer = setTimeout(() => finish(), 15000);
 };
 
 // ---------- map (shows "my location" as a circle + every shop as a pin) ----------
@@ -812,8 +842,13 @@ let shopMarkersBySlug = {};
 window.toggleMap = function () {
   const box = document.getElementById('dir-map');
   const isOpen = box.style.display !== 'none';
-  if (isOpen) { box.style.display = 'none'; return; }
+  if (isOpen) {
+    box.style.display = 'none';
+    document.getElementById('dir-map-btn').classList.remove('active');
+    return;
+  }
   box.style.display = 'block';
+  document.getElementById('dir-map-btn').classList.add('active');
   locateMe();
   openMap();
 };
@@ -831,8 +866,6 @@ function locateMe() {
       best = pos;
       myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       myAccuracy = accuracy;
-      document.getElementById('dir-near-btn').classList.add('active');
-      renderDirectoryList();
       if (mapInstance) renderMapMarkers();
 
       if (accuracy <= 50 && watchId !== null) {
@@ -858,6 +891,7 @@ window.showShopOnMap = function (slug) {
   const box = document.getElementById('dir-map');
   if (box.style.display === 'none') {
     box.style.display = 'block';
+    document.getElementById('dir-map-btn').classList.add('active');
     locateMe();
     openMap();
   }
@@ -996,12 +1030,13 @@ window.renderDirectoryList = function () {
   const term = (document.getElementById('dir-search-input').value || '').trim().toLowerCase();
   let list = allShops.filter(s => !term || s.name.toLowerCase().includes(term) || (s.phone || '').includes(term));
 
+  const useNear = sortNear && myCoords;
   list = list.map(s => {
-    const hasCoords = myCoords && typeof s.lat === 'number' && typeof s.lng === 'number';
+    const hasCoords = useNear && typeof s.lat === 'number' && typeof s.lng === 'number';
     return { ...s, dist: hasCoords ? haversineKm(myCoords.lat, myCoords.lng, s.lat, s.lng) : null };
   });
 
-  if (myCoords) {
+  if (useNear) {
     list.sort((a, b) => (a.dist === null) - (b.dist === null) || (a.dist ?? 0) - (b.dist ?? 0));
   }
 
