@@ -51,6 +51,10 @@
   .btn-primary { width: 100%; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: 14px; font-weight: 700; font-size: 15px; margin-top: 14px; }
   .btn-ghost { width: 100%; padding: 13px; background: var(--surface-2); border: 1.5px solid var(--border); color: var(--text); border-radius: 12px; font-weight: 700; font-size: 13.5px; transition: transform .08s ease; }
   .btn-ghost:active { transform: scale(0.98); background: var(--border); }
+  .ic { width: 1.15em; height: 1.15em; flex-shrink: 0; vertical-align: -0.2em; }
+  .btn-with-icon { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-ghost.btn-with-icon { display: flex; }
+  .modal-card .num .ic { width: 38px; height: 38px; vertical-align: middle; }
   .btn-ghost:disabled { opacity: .45; cursor: not-allowed; }
   .btn-ghost:disabled:active { transform: none; background: var(--surface-2); }
   .btn-small { background: transparent; border: 1px solid var(--border); color: var(--dim); border-radius: 8px; padding: 6px 11px; font-size: 11px; font-weight: 700; }
@@ -182,7 +186,7 @@
     <p data-fr="Votre compte a été créé. Il sera activé après confirmation du paiement." data-ar="تم إنشاء حسابك. سيتم تفعيله بعد تأكيد الدفع.">Votre compte a été créé. Il sera activé après confirmation du paiement.</p>
   </div>
   <div class="card" style="text-align:center;">
-    <div style="font-size:2.4rem; margin-bottom:10px;">⏳</div>
+    <div style="color:var(--accent); margin-bottom:12px; display:flex; justify-content:center;"><span style="width:44px; height:44px; display:block;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></span></div>
     <div id="pending-whatsapp-box" class="hidden" style="background:var(--surface-2); border-radius:16px; padding:16px; margin-bottom:16px;">
       <div style="font-size:12px; color:var(--dim); font-weight:700; margin-bottom:4px;" data-fr="Contactez-nous sur WhatsApp pour activer votre compte" data-ar="تواصل معنا عبر واتساب لتفعيل حسابك">Contactez-nous sur WhatsApp pour activer votre compte</div>
       <a id="pending-whatsapp-link" href="#" target="_blank" rel="noopener" style="font-size:18px; font-weight:800; color:var(--accent); text-decoration:none;">—</a>
@@ -284,7 +288,7 @@
     <div class="card">
       <div class="eyebrow" data-fr="Emplacement du salon" data-ar="موقع الصالون">Emplacement du salon</div>
       <div id="location-status" style="font-size:13px; color:var(--dim); margin-bottom:10px;" data-fr="Non enregistré — nécessaire pour apparaître dans l'annuaire" data-ar="غير مسجَّل — ضروري للظهور في الدليل">Non enregistré — nécessaire pour apparaître dans l'annuaire</div>
-      <button class="btn-small" onclick="saveShopLocation()" id="location-btn" data-fr="📍 Enregistrer ma position actuelle" data-ar="📍 حفظ موقعي الحالي">📍 Enregistrer ma position actuelle</button>
+      <button class="btn-small btn-with-icon" onclick="saveShopLocation()" id="location-btn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-7.58 7-12a7 7 0 1 0-14 0c0 4.42 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg><span data-fr="Enregistrer ma position actuelle" data-ar="حفظ موقعي الحالي">Enregistrer ma position actuelle</span></button>
       <div style="font-size:11.5px; color:var(--dim); margin-top:8px; line-height:1.5;" data-fr="À faire une fois, depuis le salon lui-même." data-ar="يتم مرة واحدة فقط، من داخل الصالون نفسه.">À faire une fois, depuis le salon lui-même.</div>
     </div>
 
@@ -318,7 +322,7 @@
       <button class="btn-ghost" style="margin-top:8px;" onclick="downloadQr()" data-fr="Télécharger le QR code" data-ar="تحميل رمز QR">Télécharger le QR code</button>
     </div>
 
-    <button class="btn-ghost" onclick="askConfirm('password', null)" id="change-password-btn" data-fr="🔑 Changer mon mot de passe" data-ar="🔑 تغيير كلمة المرور">🔑 Changer mon mot de passe</button>
+    <button class="btn-ghost btn-with-icon" onclick="askConfirm('password', null)" id="change-password-btn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15 19 4"/><path d="m18 5 3 3"/><path d="m15 8 3 3"/></svg><span data-fr="Changer mon mot de passe" data-ar="تغيير كلمة المرور">Changer mon mot de passe</span></button>
     <button class="btn-ghost" style="color:var(--danger); border-color:var(--danger); margin-top:8px;" onclick="doSignOut()" data-fr="Se déconnecter" data-ar="تسجيل الخروج">Se déconnecter</button>
   </div>
 </div>
@@ -841,9 +845,9 @@ window.confirmCapacity = async function () {
 };
 
 // ---------- colors ----------
-const LIGHT_COLOR_OPTIONS = [['#7C5CFF','Violet'],['#4F46E5','Indigo'],['#2563EB','Bleu Roi'],['#0891B2','Cyan'],['#0D9488','Sarcelle'],['#16A34A','Vert'],['#CA8A04','Ambre'],['#D97706','Orange'],['#DC2626','Rouge'],['#E11D48','Rose Vif'],['#C026D3','Fuchsia'],['#475569','Ardoise']];
-const DARK_COLOR_OPTIONS = [['#9C7CFF','Lavande'],['#818CF8','Indigo Clair'],['#60A5FA','Bleu Ciel'],['#22D3EE','Cyan'],['#2DD4BF','Menthe'],['#4ADE80','Vert Clair'],['#FBBF24','Or'],['#FB923C','Orange Clair'],['#F87171','Rouge Clair'],['#FB7185','Rose'],['#E879F9','Fuchsia Clair'],['#94A3B8','Gris Bleu']];
-const COLOR_PRESETS = [['#7C5CFF','#9C7CFF'],['#2563EB','#60A5FA'],['#0D9488','#2DD4BF'],['#16A34A','#4ADE80'],['#E11D48','#FB7185'],['#D97706','#FBBF24'],['#4F46E5','#818CF8'],['#0891B2','#22D3EE']];
+const LIGHT_COLOR_OPTIONS = [['#7C5CFF','Violet'],['#4F46E5','Indigo'],['#2563EB','Bleu Roi'],['#1E3A8A','Bleu Nuit'],['#0369A1','Océan'],['#0891B2','Cyan'],['#0D9488','Sarcelle'],['#115E59','Pétrole'],['#059669','Émeraude'],['#16A34A','Vert'],['#4D7C0F','Olive'],['#CA8A04','Ambre'],['#D97706','Orange'],['#EA580C','Mandarine'],['#92400E','Cuivre'],['#E2574C','Corail'],['#DC2626','Rouge'],['#9F1239','Bordeaux'],['#E11D48','Rose Vif'],['#DB2777','Rose Poudré'],['#C026D3','Fuchsia'],['#7E22CE','Pourpre'],['#581C87','Aubergine'],['#475569','Ardoise']];
+const DARK_COLOR_OPTIONS = [['#9C7CFF','Lavande'],['#818CF8','Indigo Clair'],['#60A5FA','Bleu Ciel'],['#93C5FD','Bleu Pâle'],['#38BDF8','Azur'],['#22D3EE','Cyan'],['#2DD4BF','Menthe'],['#5EEAD4','Turquoise'],['#34D399','Émeraude Clair'],['#4ADE80','Vert Clair'],['#A3E635','Citron Vert'],['#FBBF24','Or'],['#FB923C','Orange Clair'],['#FF9A62','Mandarine Clair'],['#FDBA74','Abricot'],['#FF8A7A','Corail Clair'],['#F87171','Rouge Clair'],['#F9A8B8','Bordeaux Clair'],['#FB7185','Rose'],['#F472B6','Rose Poudré Clair'],['#E879F9','Fuchsia Clair'],['#C084FC','Pourpre Clair'],['#C4B5FD','Glycine'],['#94A3B8','Gris Bleu']];
+const COLOR_PRESETS = LIGHT_COLOR_OPTIONS.map(([l], i) => [l, DARK_COLOR_OPTIONS[i][0]]);
 
 function renderColorDropdown(which, options) {
   document.getElementById(which + '-color-dropdown').innerHTML = options.map(([hex, name]) =>
@@ -945,14 +949,14 @@ window.askConfirm = function (action, payload) {
     return;
   }
   if (action === 'location') {
-    document.getElementById('modal-num').textContent = '📍';
+    document.getElementById('modal-num').innerHTML = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-7.58 7-12a7 7 0 1 0-14 0c0 4.42 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>';
     document.getElementById('modal-msg').textContent = t('Enregistrer votre position actuelle comme emplacement du salon ? Ne le faites que si vous êtes bien au salon maintenant.', 'هل تريد حفظ موقعك الحالي كموقع للصالون؟ قم بذلك فقط إذا كنت داخل الصالون الآن.');
     document.getElementById('modal-confirm-btn').classList.remove('danger');
     document.getElementById('modal-overlay').classList.add('show');
     return;
   }
   if (action === 'password') {
-    document.getElementById('modal-num').textContent = '🔑';
+    document.getElementById('modal-num').innerHTML = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15 19 4"/><path d="m18 5 3 3"/><path d="m15 8 3 3"/></svg>';
     document.getElementById('modal-msg').textContent = t(
       'Recevoir un lien par e-mail pour changer votre mot de passe ?',
       'هل تريد استلام رابط عبر البريد الإلكتروني لتغيير كلمة المرور؟'
