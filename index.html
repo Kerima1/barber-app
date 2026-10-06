@@ -352,7 +352,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  doc, getDoc, setDoc, updateDoc, onSnapshot, runTransaction
+  doc, getDoc, setDoc, updateDoc, onSnapshot, runTransaction, arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -611,7 +611,8 @@ function renderDashboard() {
   document.getElementById('missed-box').innerHTML = missed.map(n => `
     <div class="missed-chip"><div class="num">#${n}</div><button class="btn-small" onclick="askConfirm('recall', ${n})">${t('Rappeler','استدعاء')}</button></div>`).join('');
 
-  const waiting = shopData.waiting || [];
+  // Ticket numbers only ever go up, so the queue order is just ascending order.
+  const waiting = [...(shopData.waiting || [])].sort((a, b) => a - b);
   document.getElementById('waiting-box').innerHTML = waiting.slice(0, 6).map((n, i) => `<span class="${i === 0 ? 'first' : ''}${manualNumbers.includes(n) ? ' manual-num' : ''}">${n}${manualNumbers.includes(n) ? manualTag : ''}</span>`).join('')
     || `<span style="opacity:.5;">${t('Aucun','لا يوجد')}</span>`;
   document.getElementById('waiting-count').textContent = waiting.length > 0 ? waiting.length + ' ' + t('en attente au total','بالانتظار إجمالاً') : '';
@@ -648,9 +649,14 @@ function renderDashboard() {
 
 let addingChair = false;
 window.addChair = function () {
-  const waiting = [...(shopData.waiting || [])], chairs = [...(shopData.chairs || [])];
-  if (waiting.length > 0) chairs.push(waiting.shift());
-  updateDoc(doc(db, 'shops', currentUid), { waiting, chairs });
+  const waiting = [...(shopData.waiting || [])].sort((a, b) => a - b);
+  const chairs = [...(shopData.chairs || [])];
+  if (waiting.length === 0) return;
+  const next = waiting[0];
+  chairs.push(next);
+  // Only send what changed ("take this ticket out of the queue"), never the
+  // whole queue — so a ticket a customer took meanwhile can't be wiped out.
+  updateDoc(doc(db, 'shops', currentUid), { chairs, waiting: arrayRemove(next) });
 };
 
 async function runGiveManualNumber() {
@@ -917,25 +923,38 @@ window.closeModal = function () { document.getElementById('modal-overlay').class
 window.confirmModal = async function () {
   if (!pendingAction) return;
   const { action, payload } = pendingAction;
-  let waiting = [...(shopData.waiting || [])], chairs = [...(shopData.chairs || [])], missed = [...(shopData.missed || [])];
+  const waiting = [...(shopData.waiting || [])].sort((a, b) => a - b);
+  const chairs = [...(shopData.chairs || [])];
+  // The queue (`waiting`) is also written by customers taking tickets, so it is
+  // NEVER sent as a whole list from here — only "remove this number" /
+  // "add this number". Chairs and missed are only ever changed by the owner.
+  const changes = {};
   if (action === 'finish') {
-    if (waiting.length > 0) chairs[payload] = waiting.shift(); else chairs.splice(payload, 1);
+    const next = waiting[0];
+    if (next !== undefined) { chairs[payload] = next; changes.waiting = arrayRemove(next); }
+    else chairs.splice(payload, 1);
+    changes.chairs = chairs;
   } else if (action === 'absent') {
-    missed.push(chairs[payload]);
-    if (waiting.length > 0) chairs[payload] = waiting.shift(); else chairs.splice(payload, 1);
+    const n = chairs[payload];
+    const next = waiting[0];
+    if (next !== undefined) { chairs[payload] = next; changes.waiting = arrayRemove(next); }
+    else chairs.splice(payload, 1);
+    changes.chairs = chairs;
+    changes.missed = arrayUnion(n);
   } else if (action === 'cancel') {
     const n = chairs[payload];
-    let i = 0;
-    while (i < waiting.length && waiting[i] < n) i++;
-    waiting.splice(i, 0, n);
     chairs.splice(payload, 1);
+    changes.chairs = chairs;
+    changes.waiting = arrayUnion(n); // order is restored by sorting when displayed
   } else if (action === 'recall') {
-    missed = missed.filter(n => n !== payload); chairs.push(payload);
+    chairs.push(payload);
+    changes.chairs = chairs;
+    changes.missed = arrayRemove(payload);
   }
   // updateDoc (unlike runTransaction) applies to the local view immediately,
   // then syncs with the server in the background — this is what makes it
   // feel instant instead of waiting on a round-trip first.
-  updateDoc(doc(db, 'shops', currentUid), { waiting, chairs, missed });
+  updateDoc(doc(db, 'shops', currentUid), changes);
   closeModal();
 };
 
