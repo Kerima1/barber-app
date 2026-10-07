@@ -287,7 +287,7 @@ import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection
+  getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -432,6 +432,7 @@ function startListeners() {
     renderPayments();
     renderPartners();
     enforceAutoLock();
+    migrateEmails();
   });
 
   settingsUnsub = onSnapshot(doc(db, 'settings', 'billing'), (snap) => {
@@ -504,15 +505,41 @@ function renderAccounts() {
       </div>
     </div>`).join('') || `<div style="text-align:center; color:var(--dim); padding:30px 0; font-size:13px;">${t('Aucun résultat','لا توجد نتائج')}</div>`;
 }
+// One-time clean-up, done automatically while you (the admin) have this page
+// open: shops created before this change still have their owner's email in the
+// PUBLIC shop document. Move it to the private document, then remove it from
+// the public one. Safe to repeat — shops already moved are skipped.
+const emailMoveTried = new Set();
+async function migrateEmails() {
+  for (const s of shops) {
+    if (typeof s.email !== 'string' || !s.email || emailMoveTried.has(s.id)) continue;
+    emailMoveTried.add(s.id);
+    try {
+      await setDoc(doc(db, 'shops', s.id, 'private', 'info'), { email: s.email }, { merge: true });
+      await updateDoc(doc(db, 'shops', s.id), { email: deleteField() });
+    } catch (e) { console.warn('[barber] email move failed for', s.id, e); }
+  }
+}
+
+async function ownerEmail(id) {
+  try {
+    const snap = await getDoc(doc(db, 'shops', id, 'private', 'info'));
+    if (snap.exists() && snap.data().email) return snap.data().email;
+  } catch (e) { /* fall through to the old location */ }
+  const s = shops.find(x => x.id === id);
+  return (s && s.email) || '';
+}
+
 window.toggleActive = async function (id) {
   const s = shops.find(s => s.id === id);
   await updateDoc(doc(db, 'shops', id), { active: !s.active });
 };
 window.resetPin = async function (id) {
-  const s = shops.find(s => s.id === id);
   try {
-    await sendPasswordResetEmail(auth, s.email);
-    alert(t('E-mail de réinitialisation envoyé à ' + s.email, 'تم إرسال بريد إعادة الضبط إلى ' + s.email));
+    const email = await ownerEmail(id);
+    if (!email) throw new Error('no-email');
+    await sendPasswordResetEmail(auth, email);
+    alert(t('E-mail de réinitialisation envoyé à ' + email, 'تم إرسال بريد إعادة الضبط إلى ' + email));
   } catch (e) {
     alert(t('Échec de l\u2019envoi — vérifie l\u2019adresse e-mail du salon.', 'فشل الإرسال — تحقق من البريد الإلكتروني للصالون.'));
   }
