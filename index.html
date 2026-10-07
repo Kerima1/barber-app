@@ -610,6 +610,7 @@ function watchShop(uid) {
   unsubShop = onSnapshot(doc(db, 'shops', uid), { includeMetadataChanges: true }, (snap) => {
     if (!snap.exists()) return;
     serverConnected = !snap.metadata.fromCache;
+    hasPendingWrites = snap.metadata.hasPendingWrites;
     shopData = snap.data();
 
     // Only an EXPLICIT false locks the account out — a shop created before
@@ -631,20 +632,22 @@ function watchShop(uid) {
 }
 
 // Safety net for the live connection: while the owner has the app open, ask
-// the server directly every 20 s, so the queue is never more than a few seconds
+// the server directly every 8 s, so the queue is never more than a few seconds
 // behind even if the live connection stalls.
+let hasPendingWrites = false;
 async function refreshShopFromServer() {
   if (!currentUid || !shopData || !isConnected()) return;
+  if (hasPendingWrites) return; // an action of yours is still being sent — don't show older data over it
   if (document.visibilityState !== 'visible') return;
   try {
     const fresh = await getDocFromServer(doc(db, 'shops', currentUid));
-    if (!fresh.exists()) return;
+    if (!fresh.exists() || hasPendingWrites) return;
     shopData = fresh.data();
     if (shopData.active === false) return;
     renderDashboard();
   } catch (e) { /* offline — the live listener will catch up */ }
 }
-setInterval(refreshShopFromServer, 20000);
+setInterval(refreshShopFromServer, 8000);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') refreshShopFromServer();
 });
@@ -656,10 +659,17 @@ function iconHtml(url, name) {
   return fallback;
 }
 
+let lastIconKey = null, lastQrLink = null;
 function renderDashboard() {
   document.getElementById('hero-name').textContent = shopData.name;
-  document.getElementById('hero-icon').innerHTML = iconHtml(shopData.logoUrl, shopData.name);
-  document.getElementById('settings-icon').innerHTML = iconHtml(shopData.logoUrl, shopData.name);
+  // Redrawing the logo and the QR code on every update is slow on phones, so
+  // only do it when they actually changed.
+  const iconKey = (shopData.logoUrl || '') + '|' + (shopData.name || '');
+  if (iconKey !== lastIconKey) {
+    lastIconKey = iconKey;
+    document.getElementById('hero-icon').innerHTML = iconHtml(shopData.logoUrl, shopData.name);
+    document.getElementById('settings-icon').innerHTML = iconHtml(shopData.logoUrl, shopData.name);
+  }
 
   const manualNumbers = shopData.manualNumbers || [];
   const manualTag = `<span class="manual-tag">${t('Manuel','يدوي')}</span>`;
@@ -711,8 +721,11 @@ function renderDashboard() {
   const link = location.origin + location.pathname.replace('index.html', '') + 'client.html?shop=' + shopData.slug;
   document.getElementById('shop-link').textContent = link;
   const qrBox = document.getElementById('qr-box');
-  qrBox.innerHTML = '';
-  if (typeof QRCode !== 'undefined') new QRCode(qrBox, { text: link, width: 160, height: 160, colorDark: '#1E1033', colorLight: '#ffffff' });
+  if (link !== lastQrLink && typeof QRCode !== 'undefined') {
+    lastQrLink = link;
+    qrBox.innerHTML = '';
+    new QRCode(qrBox, { text: link, width: 160, height: 160, colorDark: '#1E1033', colorLight: '#ffffff' });
+  }
 }
 
 let addingChair = false;
@@ -1091,7 +1104,7 @@ window.confirmModal = async function () {
   btn.disabled = true;
   try {
     if (pendingAction.action === 'reset') {
-      await updateDoc(doc(db, 'shops', currentUid), { waiting: [], chairs: [], missed: [], nextTicket: 1, manualNumbers: [] });
+      await updateDoc(doc(db, 'shops', currentUid), { waiting: [], chairs: [], missed: [], nextTicket: 1, manualNumbers: [], queueId: Date.now() });
       closeModal();
     } else if (pendingAction.action === 'manual') {
       await runGiveManualNumber();
