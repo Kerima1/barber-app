@@ -202,16 +202,51 @@
   .scan-close { margin: 10px auto 24px; width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,.15); border: none; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
   .scan-gallery-btn { margin: 18px auto 0; display: block; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.3); color: #fff; padding: 10px 20px; border-radius: 20px; font-weight: 700; font-size: 13px; }
   .scan-error { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: #fff; padding: 30px; font-size: 13.5px; }
+
+  /* ---- Numbers always read left-to-right (like French), even in Arabic ---- */
+  .hero-phone, .tt-phone, .help-num, .plaque .num, .missed-chip .num, .ticket .num,
+  .confirm-num-card .num, .ticket-template .tt-num, #ask-num-value, #modal-num { direction: ltr; unicode-bidi: isolate; }
+  .plaque-row, .waiting-nums { direction: ltr; }
+  body.ar .waiting-nums { justify-content: flex-end; }
+  body.ar #missed-row { text-align: right; }
+
+  /* ---- Help button (top bar) + panel ---- */
+  .help-btn { display: none; align-items: center; gap: 6px; margin-inline-end: auto; background: #25D366; color: #fff; border: none; border-radius: 20px; padding: 6px 12px 6px 8px; font-weight: 700; font-size: 12px; box-shadow: 0 6px 14px rgba(37,211,102,.35); }
+  .help-btn.show { display: inline-flex; }
+  body.ar .help-btn { padding: 6px 8px 6px 12px; }
+  @media (hover: hover) { .help-btn:hover { filter: brightness(1.07); } }
+  .help-btn:active { transform: scale(.97); }
+  .help-overlay { display: none; position: fixed; inset: 0; background: rgba(20,10,40,.55); z-index: 120; align-items: flex-end; justify-content: center; }
+  .help-overlay.show { display: flex; }
+  .help-sheet { width: 100%; max-width: 420px; background: var(--surface); color: var(--text); border-radius: 22px 22px 0 0; padding: 22px 20px calc(22px + env(safe-area-inset-bottom)); text-align: center; }
+  .help-ic { width: 48px; height: 48px; border-radius: 50%; background: #25D366; color: #fff; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; }
+  .help-sheet h4 { font-size: 16px; margin-bottom: 6px; }
+  .help-sheet p { font-size: 13px; color: var(--dim); line-height: 1.5; margin-bottom: 12px; }
+  .help-num { display: block; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 17px; margin-bottom: 14px; }
+  .help-go { display: block; background: #25D366; color: #fff; text-decoration: none; font-weight: 800; border-radius: 14px; padding: 13px; font-size: 14px; }
+  .help-close { margin-top: 10px; background: none; border: none; color: var(--dim); font-weight: 600; font-size: 13px; padding: 8px; }
 </style>
 </head>
 <body>
 
 <div class="topbar">
+  <button class="help-btn" id="help-btn" onclick="openHelp()"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12.04 2a9.9 9.9 0 0 0-8.5 14.9L2 22l5.25-1.5A9.9 9.9 0 1 0 12.04 2Zm0 18.1a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3.1.9.85-3.02-.2-.31A8.2 8.2 0 1 1 12.04 20.1Zm4.5-6.1c-.25-.12-1.45-.72-1.68-.8-.22-.08-.39-.12-.55.12s-.63.8-.77.96c-.14.17-.28.19-.53.06a6.7 6.7 0 0 1-3.3-2.9c-.25-.43.25-.4.72-1.33.08-.16.04-.3-.02-.42-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.47c-.16 0-.43.06-.65.3s-.86.84-.86 2.05.88 2.38 1 2.54c.12.16 1.73 2.64 4.2 3.7 1.56.67 2.17.73 2.95.62.48-.07 1.45-.6 1.66-1.17.2-.57.2-1.06.14-1.17-.06-.1-.22-.16-.47-.28Z"/></svg><span data-fr="Aide" data-ar="مساعدة">Aide</span></button>
   <div class="pill-toggle">
     <button class="active" id="lang-fr" onclick="setLang('fr')">FR</button>
     <button id="lang-ar" onclick="setLang('ar')">عربي</button>
   </div>
   <button class="theme-btn" id="theme-btn" onclick="toggleTheme()"></button>
+</div>
+
+<div class="help-overlay" id="help-overlay" onclick="if (event.target === this) closeHelp()">
+  <div class="help-sheet">
+    <div class="help-ic"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" d="M12.04 2a9.9 9.9 0 0 0-8.5 14.9L2 22l5.25-1.5A9.9 9.9 0 1 0 12.04 2Zm0 18.1a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3.1.9.85-3.02-.2-.31A8.2 8.2 0 1 1 12.04 20.1Zm4.5-6.1c-.25-.12-1.45-.72-1.68-.8-.22-.08-.39-.12-.55.12s-.63.8-.77.96c-.14.17-.28.19-.53.06a6.7 6.7 0 0 1-3.3-2.9c-.25-.43.25-.4.72-1.33.08-.16.04-.3-.02-.42-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.47c-.16 0-.43.06-.65.3s-.86.84-.86 2.05.88 2.38 1 2.54c.12.16 1.73 2.64 4.2 3.7 1.56.67 2.17.73 2.95.62.48-.07 1.45-.6 1.66-1.17.2-.57.2-1.06.14-1.17-.06-.1-.22-.16-.47-.28Z"/></svg></div>
+    <h4 data-fr="Une question ? Besoin d'aide ?" data-ar="هل لديك سؤال؟ تحتاج إلى مساعدة؟">Une question ? Besoin d'aide ?</h4>
+    <p data-fr="Écrivez-nous sur WhatsApp, nous vous répondons dès que possible." data-ar="راسلنا على واتساب وسنرد عليك في أقرب وقت ممكن.">Écrivez-nous sur WhatsApp, nous vous répondons dès que possible.</p>
+    <span class="help-num" id="help-num"></span>
+    <a class="help-go" id="help-go" href="#" target="_blank" rel="noopener"><span data-fr="Ouvrir WhatsApp" data-ar="فتح واتساب">Ouvrir WhatsApp</span></a>
+    <button class="help-close" onclick="closeHelp()" data-fr="Fermer" data-ar="إغلاق">Fermer</button>
+  </div>
 </div>
 
 <div class="wrap" id="directory" style="display:none;">
@@ -1611,6 +1646,33 @@ if (!slug) {
   // that becomes the new "my shop" going forward.
   localStorage.setItem('barberLastShop', slug);
 }
+
+// ---------- Help button: the support WhatsApp number set in the admin page ----------
+function showHelpNumber(raw) {
+  const wa = String(raw || '').trim();
+  if (!wa) return;
+  const digits = wa.replace(/\D/g, '');
+  const full = (digits.length > 8 && digits.indexOf('222') === 0) ? digits : '222' + digits;
+  document.getElementById('help-num').textContent = wa;
+  document.getElementById('help-go').href = 'https://wa.me/' + full;
+  document.getElementById('help-btn').classList.add('show');
+}
+async function loadHelpNumber() {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'contact'));
+    const wa = snap.exists() ? snap.data().whatsapp : '';
+    if (wa) {
+      showHelpNumber(wa);
+      try { localStorage.setItem('barberHelpNumber', String(wa)); } catch (e) {}
+      return;
+    }
+  } catch (e) { /* offline or not reachable — use the saved copy below */ }
+  try { showHelpNumber(localStorage.getItem('barberHelpNumber')); } catch (e) {}
+}
+window.openHelp = function () { document.getElementById('help-overlay').classList.add('show'); };
+window.closeHelp = function () { document.getElementById('help-overlay').classList.remove('show'); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHelp(); });
+loadHelpNumber();
 init();
 </script>
 
