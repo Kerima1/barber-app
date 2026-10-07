@@ -495,12 +495,15 @@ window.submitAuth = async function () {
       const slug = slugify(name);
       await setDoc(doc(db, 'slugs', slug), { uid });
       await setDoc(doc(db, 'shops', uid), {
-        name, phone, email, slug, logoUrl: '',
+        name, phone, slug, logoUrl: '', // the email is NOT stored here: shop documents are public
         accentLight: '#7C5CFF', accentDark: '#9C7CFF',
         capacity: 50, nextTicket: 1, waiting: [], chairs: [], missed: [],
         active: false, // new accounts start locked — admin activates after payment
         createdAt: Date.now()
       });
+      // The email goes in a private document that only the owner and the admin
+      // can read (the admin needs it for the "reset password" button).
+      try { await setDoc(doc(db, 'shops', uid, 'private', 'info'), { email }); } catch (e) { console.warn('[barber] private email not saved', e); }
     } else {
       if (!email || !pin) throw new Error(t('Entre ton e-mail et ton code PIN.', 'أدخل بريدك الإلكتروني ورمز PIN.'));
       await signInWithEmailAndPassword(auth, email, pin);
