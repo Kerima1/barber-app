@@ -1270,6 +1270,22 @@ window.handleScanFile = function (event) {
   reader.readAsDataURL(file);
 };
 
+// The "take a number" button: shows "full" when the day's list is full,
+// "connection needed" when offline, otherwise the normal button.
+function updateTakeBtn() {
+  const takeBtn = document.getElementById('take-btn');
+  if (!takeBtn || !shopData) return;
+  const full = shopData.nextTicket > (shopData.capacity || 50);
+  const offline = !isConnected();
+  takeBtn.style.display = 'block';
+  takeBtn.disabled = full || offline;
+  takeBtn.textContent = full
+    ? t('File complète pour aujourd\u2019hui','الطابور ممتلئ لهذا اليوم')
+    : offline
+      ? t('Connexion requise pour prendre un numéro','يلزم الاتصال بالإنترنت لأخذ رقم')
+      : t('Prendre mon numéro','خذ رقمك');
+}
+
 function render() {
   document.getElementById('shop-name').textContent = shopData.name;
   document.getElementById('shop-phone').textContent = shopData.phone || '';
@@ -1296,20 +1312,8 @@ function render() {
     || `<span style="opacity:.4;">${t('Aucun','لا يوجد')}</span>`;
   document.getElementById('waiting-count').textContent = waiting.length > 0 ? waiting.length + ' ' + t('en attente au total','بالانتظار إجمالاً') : '';
 
-  const full = shopData.nextTicket > (shopData.capacity || 50);
-  const takeBtn = document.getElementById('take-btn');
-  if (myTicket === null) {
-    takeBtn.style.display = 'block';
-    const offline = !isConnected();
-    takeBtn.disabled = full || offline;
-    takeBtn.textContent = full
-      ? t('File complète pour aujourd\u2019hui','الطابور ممتلئ لهذا اليوم')
-      : offline
-        ? t('Connexion requise pour prendre un numéro','يلزم الاتصال بالإنترنت لأخذ رقم')
-        : t('Prendre mon numéro','خذ رقمك');
-  } else {
-    takeBtn.style.display = 'none';
-  }
+  if (myTicket === null) updateTakeBtn();
+  else document.getElementById('take-btn').style.display = 'none';
 
   renderMyTicket(chairs, waiting, missed);
 }
@@ -1333,9 +1337,7 @@ function renderMyTicket(chairs, waiting, missed) {
     localStorage.removeItem(storageKey);
     ticketEl.classList.remove('show', 'next-up');
     pdfBtn.style.display = 'none';
-    const takeBtn = document.getElementById('take-btn');
-    takeBtn.style.display = 'block';
-    takeBtn.disabled = false;
+    updateTakeBtn(); // the ticket just ended: show "full" or "take a number" correctly
     return;
   }
 
@@ -1386,6 +1388,7 @@ function noInternetForTicket() {
 }
 window.askTakeNumber = function () {
   if (!uid || !shopData) return;
+  if (shopData.nextTicket > (shopData.capacity || 50)) { updateTakeBtn(); return; } // list is full
   if (!isConnected()) { noInternetForTicket(); return; }
   document.getElementById('ask-num-value').textContent = '#' + shopData.nextTicket;
   document.getElementById('ask-num-overlay').classList.add('show');
