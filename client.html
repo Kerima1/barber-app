@@ -187,7 +187,7 @@
   .sc-map-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-2); color: var(--accent); display: flex; align-items: center; justify-content: center; }
   .shop-card .sc-name { font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .shop-card .sc-meta { font-size: 12px; color: var(--dim); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
-  .shop-card .sc-dist { font-weight: 700; color: var(--accent); }
+  .shop-card .sc-dist { font-weight: 700; color: var(--accent); direction: ltr; unicode-bidi: isolate; }
 
   .dir-empty { text-align: center; padding: 40px 0; color: var(--dim); font-size: 13.5px; }
 
@@ -334,7 +334,7 @@
   <div class="ticket" id="ticket">
     <div class="lbl" id="ticket-lbl" data-fr="Votre numéro" data-ar="رقمك">Votre numéro</div>
     <div class="num" id="ticket-num">—</div>
-    <div class="wait" id="ticket-wait" data-fr="Attente estimée : 20 min" data-ar="الانتظار المتوقع: 20 دقيقة">Attente estimée : 20 min</div>
+    <div class="wait" id="ticket-wait"></div>
   </div>
   <button class="pdf-btn" id="pdf-btn" style="display:none;" onclick="generateTicketImage()" data-fr="Voir / enregistrer mon ticket" data-ar="عرض / حفظ تذكرتي">Voir / enregistrer mon ticket</button>
 
@@ -1391,7 +1391,7 @@ function renderMyTicket(chairs, waiting, missed) {
     waitEl.textContent = t('Vous êtes le prochain !', 'أنت التالي!');
   } else {
     ticketEl.classList.remove('next-up');
-    waitEl.textContent = t('Attente estimée : 20 min', 'الانتظار المتوقع: 20 دقيقة');
+    waitEl.textContent = '';
   }
 }
 
