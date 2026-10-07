@@ -410,6 +410,10 @@ const app = initializeApp(firebaseConfig);
 let db;
 try {
   db = initializeFirestore(app, {
+    // Some mobile networks hold back the live connection for many seconds.
+    // This lets Firestore notice that and switch to a connection style those
+    // networks don't delay.
+    experimentalAutoDetectLongPolling: true,
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
   });
 } catch (e) {
@@ -495,6 +499,13 @@ let serverConnected = true;
 function isConnected() { return navigator.onLine && serverConnected; }
 window.addEventListener('offline', () => { if (uid && shopData) render(); });
 window.addEventListener('online', () => { refreshOnResume(); });
+
+// Safety net for the live connection: someone holding a ticket checks the
+// server directly every 20 s, so "it's your turn" / "finished" never stays
+// stuck on screen even if the live connection stalls.
+setInterval(() => {
+  if (document.visibilityState === 'visible' && myTicket !== null && isConnected()) refreshOnResume();
+}, 20000);
 
 async function refreshOnResume() {
   if (!uid || !shopData) return; // directory open, or nothing loaded yet
