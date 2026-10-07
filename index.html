@@ -284,7 +284,7 @@
         <div id="capacity-text" style="font-family:'Space Grotesk',sans-serif; font-size:20px; font-weight:700;">0 / 50</div>
         <button class="btn-small" onclick="editCapacity()" data-fr="Modifier" data-ar="تعديل">Modifier</button>
       </div>
-      <div id="capacity-edit" class="hidden" style="display:none; gap:8px; margin-top:10px;">
+      <div id="capacity-edit" style="display:none; gap:8px; margin-top:10px;">
         <input type="number" id="capacity-input" min="1" style="width:100px; display:inline-block;">
         <button class="btn-small" onclick="confirmCapacity()">OK</button>
       </div>
@@ -365,7 +365,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  doc, getDoc, setDoc, updateDoc, onSnapshot, runTransaction, arrayUnion, arrayRemove
+  doc, getDoc, getDocFromServer, setDoc, updateDoc, onSnapshot, runTransaction, arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -383,6 +383,10 @@ const auth = getAuth(app);
 let db;
 try {
   db = initializeFirestore(app, {
+    // Some mobile networks hold back the live connection for many seconds.
+    // This lets Firestore notice that and switch to a connection style those
+    // networks don't delay.
+    experimentalAutoDetectLongPolling: true,
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
   });
 } catch (e) {
@@ -625,6 +629,25 @@ function watchShop(uid) {
     updateConnectionUI();
   });
 }
+
+// Safety net for the live connection: while the owner has the app open, ask
+// the server directly every 20 s, so the queue is never more than a few seconds
+// behind even if the live connection stalls.
+async function refreshShopFromServer() {
+  if (!currentUid || !shopData || !isConnected()) return;
+  if (document.visibilityState !== 'visible') return;
+  try {
+    const fresh = await getDocFromServer(doc(db, 'shops', currentUid));
+    if (!fresh.exists()) return;
+    shopData = fresh.data();
+    if (shopData.active === false) return;
+    renderDashboard();
+  } catch (e) { /* offline — the live listener will catch up */ }
+}
+setInterval(refreshShopFromServer, 20000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshShopFromServer();
+});
 
 function iconHtml(url, name) {
   const letter = (name || '?').trim()[0]?.toUpperCase() || '?';
