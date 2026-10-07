@@ -466,6 +466,18 @@ let slug = new URLSearchParams(location.search).get('shop');
 let uid = null, shopData = null;
 let storageKey = 'myTicket_' + slug;
 let myTicket = null;
+// Which "day" (queue round) the saved ticket belongs to. Ticket numbers start
+// again at 1 after the owner resets the queue, so a number saved on a phone
+// from an earlier round must never be mistaken for the same number today.
+let myTicketQueue = null;
+function queueIdOf(d) { return String((d && d.queueId) || 0); }
+function saveTicket(key, n, q) { localStorage.setItem(key, q + ':' + n); }
+function loadTicket(key) {
+  const v = localStorage.getItem(key);
+  if (!v) return { n: null, q: null };
+  if (v.indexOf(':') >= 0) { const p = v.split(':'); return { n: parseInt(p[1], 10), q: p[0] }; }
+  return { n: parseInt(v, 10), q: null }; // saved by an older version of the app
+}
 let unsubscribeShop = null;
 
 // One single install identity for every shop now (not one per shop) — the
@@ -503,9 +515,22 @@ window.addEventListener('online', () => { refreshOnResume(); });
 // Safety net for the live connection: someone holding a ticket checks the
 // server directly every 20 s, so "it's your turn" / "finished" never stays
 // stuck on screen even if the live connection stalls.
+// Customers close to being called check every 5 s (that's when seconds
+// matter); everyone else every 20 s. This keeps the number of reads low.
+let pollTick = 0;
+function closeToTurn() {
+  if (myTicket === null || !shopData) return false;
+  const chairs = shopData.chairs || [], missed = shopData.missed || [];
+  if (chairs.includes(myTicket) || missed.includes(myTicket)) return true;
+  const waiting = [...(shopData.waiting || [])].sort((a, b) => a - b);
+  const i = waiting.indexOf(myTicket);
+  return i >= 0 && i < 3;
+}
 setInterval(() => {
-  if (document.visibilityState === 'visible' && myTicket !== null && isConnected()) refreshOnResume();
-}, 20000);
+  if (document.visibilityState !== 'visible' || myTicket === null || !isConnected()) return;
+  pollTick++;
+  if (closeToTurn() || pollTick % 4 === 0) refreshOnResume();
+}, 5000);
 
 async function refreshOnResume() {
   if (!uid || !shopData) return; // directory open, or nothing loaded yet
@@ -665,7 +690,7 @@ window.openShop = function (newSlug) {
   if (!newSlug) return;
   slug = newSlug;
   storageKey = 'myTicket_' + slug;
-  myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
+  { const s = loadTicket(storageKey); myTicket = s.n; myTicketQueue = s.q; }
   history.replaceState(null, '', location.pathname + '?shop=' + encodeURIComponent(slug));
   // Remember this as "my shop" — the installed app icon has one fixed start_url
   // (no shop in it), so this is what lets a cold launch from the home screen
@@ -1295,9 +1320,16 @@ function renderMyTicket(chairs, waiting, missed) {
   const pdfBtn = document.getElementById('pdf-btn');
   if (myTicket === null) { ticketEl.classList.remove('show'); pdfBtn.style.display = 'none'; return; }
 
-  const stillTracked = chairs.includes(myTicket) || waiting.includes(myTicket) || missed.includes(myTicket);
+  // A ticket saved in an earlier round (before a reset) is not ours any more.
+  const currentQ = queueIdOf(shopData);
+  let sameRound = true;
+  if (myTicketQueue === null) { myTicketQueue = currentQ; saveTicket(storageKey, myTicket, currentQ); } // older save: adopt once
+  else if (myTicketQueue !== currentQ) sameRound = false;
+
+  const stillTracked = sameRound && (chairs.includes(myTicket) || waiting.includes(myTicket) || missed.includes(myTicket));
   if (!stillTracked) {
     myTicket = null;
+    myTicketQueue = null;
     localStorage.removeItem(storageKey);
     ticketEl.classList.remove('show', 'next-up');
     pdfBtn.style.display = 'none';
@@ -1387,6 +1419,7 @@ window.confirmTakeNumber = async function () {
       const d = (await tx.get(ref)).data();
       if (state.cancelled) throw new Error('cancelled'); // we already gave up — take nothing
       const n = d.nextTicket;
+      state.q = queueIdOf(d);
       const waiting = [...(d.waiting || []), n];
       tx.update(ref, { nextTicket: n + 1, waiting });
       return n;
@@ -1401,8 +1434,8 @@ window.confirmTakeNumber = async function () {
       if (err && err.message === 'timeout') {
         // If it went through at the very last moment anyway, keep that ticket.
         txPromise.then((n) => {
-          localStorage.setItem(ticketKey, String(n));
-          if (storageKey === ticketKey) { myTicket = n; closeAskNum(); showTicketTaken(n); if (shopData) render(); }
+          saveTicket(ticketKey, n, state.q || '0');
+          if (storageKey === ticketKey) { myTicket = n; myTicketQueue = state.q || '0'; closeAskNum(); showTicketTaken(n); if (shopData) render(); }
         }).catch(() => {});
         closeAskNum();
         showToast(t(
@@ -1415,7 +1448,8 @@ window.confirmTakeNumber = async function () {
     }
     hideToast();
     myTicket = newTicket;
-    localStorage.setItem(ticketKey, String(newTicket));
+    myTicketQueue = state.q || '0';
+    saveTicket(ticketKey, newTicket, myTicketQueue);
     closeAskNum();
     showTicketTaken(newTicket);
   } catch (e) {
@@ -1567,7 +1601,7 @@ if (!slug) {
   if (remembered) {
     slug = remembered;
     storageKey = 'myTicket_' + slug;
-    myTicket = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey), 10) : null;
+    { const s = loadTicket(storageKey); myTicket = s.n; myTicketQueue = s.q; }
   }
 } else {
   // Arrived with a shop already in the link (a fresh QR scan, a shared link) —
